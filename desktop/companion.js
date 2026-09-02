@@ -1,0 +1,3 @@
+const message = document.querySelector('#message');
+async function dailyBriefing() { const hour=new Date().getHours(); const greeting=hour<12?'Good morning, Deepak.':hour<18?'Good afternoon, Deepak.':'Good evening, Deepak.'; document.querySelector('#greeting').textContent=greeting; try { const news=await window.kritamDesktop.getNews(); message.textContent=`${news[0]} — I’ve got your day covered. What’s one thing we’ll finish first?`; } catch { message.textContent='Let’s pick one important task and make a calm start.'; } }
+document.querySelector('#open').onclick=()=>window.kritamDesktop.showCompanion().then(()=>window.close());document.querySelector('#close').onclick=()=>window.close();window.kritamDesktop.onDailyBriefing(dailyBriefing);dailyBriefing();

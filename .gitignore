@@ -1,0 +1,11 @@
+# Dependencies and Electron runtime binaries
+node_modules/
+runtime/node_modules/
+
+# KRITAM local state (cache, preferences, and session data)
+.kritam-data/
+
+# OS/editor noise
+*.log
+.DS_Store
+Thumbs.db
