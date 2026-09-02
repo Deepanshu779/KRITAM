@@ -6,6 +6,7 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell } = require(
 const https = require('https');
 
 let mainWindow, companionWindow, tray;
+let companionState = { state: 'idle', text: 'KRITAM IS READY' };
 const appRoot = path.join(__dirname, '..');
 // Keep Chromium's cache inside KRITAM rather than a potentially restricted system cache.
 const dataRoot = path.join(appRoot, '.kritam-data');
@@ -26,6 +27,15 @@ function fetchHeadlines() {
   });
 }
 
+function setCompanionState(state = 'idle', text) {
+  const allowed = ['idle', 'listening', 'thinking', 'speaking', 'happy'];
+  companionState = { state: allowed.includes(state) ? state : 'idle', text: text || undefined };
+  if (companionWindow && !companionWindow.isDestroyed()) {
+    companionWindow.webContents.send('companion:state', companionState);
+  }
+  return companionState;
+}
+
 function createMainWindow() {
   mainWindow = new BrowserWindow({ width: 1180, height: 760, minWidth: 850, minHeight: 600, show: false, backgroundColor: '#121214', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true } });
   mainWindow.loadFile(path.join(appRoot, 'index.html'));
@@ -36,8 +46,13 @@ function createCompanionWindow() {
   companionWindow.setAlwaysOnTop(true, 'floating'); companionWindow.loadFile(path.join(__dirname, 'companion.html'));
   companionWindow.on('close', (event) => { if (!app.isQuitting) { event.preventDefault(); companionWindow.hide(); } });
   companionWindow.once('ready-to-show', () => companionWindow.showInactive());
+  companionWindow.webContents.on('did-finish-load', () => setCompanionState(companionState.state, companionState.text));
 }
-function showCompanion() { companionWindow?.showInactive(); companionWindow?.webContents.send('daily-briefing-request'); }
+function showCompanion() {
+  companionWindow?.showInactive();
+  setCompanionState(companionState.state, companionState.text);
+  companionWindow?.webContents.send('daily-briefing-request');
+}
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(appRoot, 'assets', 'kritam-avatar.png')).resize({ width: 32, height: 32 });
   tray = new Tray(icon); tray.setToolTip('KRITAM — ready when you are');
@@ -52,5 +67,6 @@ app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => mainWindow?.show());
 ipcMain.handle('news:get', fetchHeadlines);
 ipcMain.handle('companion:show', showCompanion);
+ipcMain.handle('companion:set-state', (_event, state, text) => setCompanionState(state, text));
 ipcMain.handle('app:open-url', async (_event, url) => { const approved = /^https:\/\/(www\.)?(youtube\.com|google\.com|github\.com)/.test(url); if (!approved) throw new Error('This website is not on the approved list.'); await shell.openExternal(url); });
 ipcMain.handle('login:set-enabled', (_event, enabled) => { app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath }); return app.getLoginItemSettings().openAtLogin; });
