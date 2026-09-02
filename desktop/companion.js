@@ -16,8 +16,9 @@ function setAvatarState(state, text) {
   statusText.textContent = text || states[next];
 }
 
-// Exposed for the main KRITAM UI/voice engine in the next integration step.
+// Keep the companion synchronized with KRITAM's main voice/chat state.
 window.setKritamAvatarState = setAvatarState;
+window.kritamDesktop.onCompanionState(({ state, text } = {}) => setAvatarState(state, text));
 
 async function dailyBriefing() {
   const hour = new Date().getHours();
