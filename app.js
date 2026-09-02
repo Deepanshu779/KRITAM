@@ -3,7 +3,13 @@ const input = $('#messageInput'), send = $('#sendButton'), messages = $('#messag
 const statusText = $('#statusText'), orb = $('#orbWrap'), dialog = $('#permissionDialog');
 let pendingAction = null, recognition = null, listening = false;
 
-function setState(state, text) { orb.className = `orb-wrap ${state}`; statusText.textContent = text; }
+const avatarStateText = { idle: 'KRITAM is ready', listening: 'KRITAM is listening', thinking: 'KRITAM is thinking', speaking: 'KRITAM is speaking', happy: 'KRITAM is happy' };
+function setState(state, text) {
+  const safeState = ['idle', 'listening', 'thinking', 'speaking', 'happy'].includes(state) ? state : 'idle';
+  orb.className = `orb-wrap ${safeState}`;
+  statusText.textContent = text || avatarStateText[safeState];
+  window.kritamDesktop?.setCompanionState?.(safeState, text || undefined).catch?.(() => {});
+}
 function addMessage(text, role = 'assistant') {
   welcome.classList.add('hidden'); messages.classList.remove('hidden');
   const item = document.createElement('article'); item.className = `message ${role}`;
@@ -11,8 +17,8 @@ function addMessage(text, role = 'assistant') {
   messages.append(item); messages.parentElement.scrollTop = messages.parentElement.scrollHeight;
 }
 function toast(text) { const t=$('#toast');t.textContent=text;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3200); }
-function speak(text) { if (!('speechSynthesis' in window)) return; speechSynthesis.cancel(); const phrase = new SpeechSynthesisUtterance(text); phrase.rate = 1.06; phrase.pitch = 1.03; phrase.onstart=()=>setState('speaking','KRITAM is speaking'); phrase.onend=()=>setState('','KRITAM is ready'); speechSynthesis.speak(phrase); }
-function respond(text, say = true) { setState('thinking','KRITAM is thinking'); setTimeout(()=>{addMessage(text); if(say) speak(text.replace(/<[^>]*>/g,'')); else setState('','KRITAM is ready');},520); }
+function speak(text) { if (!('speechSynthesis' in window)) return; speechSynthesis.cancel(); const phrase = new SpeechSynthesisUtterance(text); phrase.rate = 1.06; phrase.pitch = 1.03; phrase.onstart=()=>setState('speaking','KRITAM is speaking'); phrase.onend=()=>setState('idle','KRITAM is ready'); speechSynthesis.speak(phrase); }
+function respond(text, say = true) { setState('thinking','KRITAM is thinking'); setTimeout(()=>{addMessage(text); if(say) speak(text.replace(/<[^>]*>/g,'')); else setState('idle','KRITAM is ready');},520); }
 function actionCard(label, detail, action) { const el=document.createElement('div');el.className='action-card';el.innerHTML=`<span class="action-symbol">↗</span><div><strong>${label}</strong><p>${detail}</p></div><button>Review & allow</button>`;el.querySelector('button').onclick=()=>askPermission(action);messages.append(el); }
 function askPermission(action) { pendingAction=action; $('#dialogTitle').textContent='Approve this action?'; $('#dialogText').textContent=action.description; $('#dialogDetail').textContent=action.kind; $('#dialogAction').textContent=action.label; dialog.showModal(); }
 function runAction() { if(!pendingAction)return; const a=pendingAction; dialog.close(); if(a.url) { if(window.kritamDesktop) window.kritamDesktop.openUrl(a.url).catch(() => toast('KRITAM blocked that website.')); else window.open(a.url,'_blank','noopener'); } if(a.camera) requestCamera(); toast(`${a.label} approved for this session.`); respond(`Done — ${a.done}.`, false); pendingAction=null; }
@@ -28,11 +34,11 @@ function submit(text=input.value.trim()){if(!text)return;addMessage(text,'user')
 $('#composer').addEventListener('submit',e=>{e.preventDefault();submit();});input.addEventListener('input',()=>send.disabled=!input.value.trim());
 document.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{input.value=b.dataset.prompt;submit();});
 $('#approveAction').onclick=runAction;$('#denyAction').onclick=()=>{dialog.close();pendingAction=null;toast('Action cancelled. Nothing changed.');};
-$('#newChat').onclick=()=>{messages.innerHTML='';messages.classList.add('hidden');welcome.classList.remove('hidden');speechSynthesis?.cancel();setState('','KRITAM is ready');};
+$('#newChat').onclick=()=>{messages.innerHTML='';messages.classList.add('hidden');welcome.classList.remove('hidden');speechSynthesis?.cancel();setState('idle','KRITAM is ready');};
 $('#themeBtn').onclick=()=>{document.body.classList.toggle('light');toast('Theme preference saved locally.');};
 $('#privacyBtn').onclick=()=>{pendingAction={kind:'Privacy centre',label:'Review permissions',description:'Microphone, camera, files and desktop actions are disabled by default. Each sensitive request needs your approval.',done:'your privacy controls are ready'};askPermission(pendingAction);};
 $('#startupToggle').onchange=(event)=>{if(!window.kritamDesktop){event.target.checked=false;toast('Run KRITAM as the desktop app to enable startup.');return;}window.kritamDesktop.setLaunchAtLogin(event.target.checked).then((enabled)=>{event.target.checked=enabled;toast(enabled?'KRITAM will start when you sign in.':'Startup launch has been disabled.');});};
 $('#showCompanion').onclick=()=>window.kritamDesktop ? window.kritamDesktop.showCompanion() : toast('Open KRITAM as a desktop app to use the companion.');
-function startVoice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Voice recognition is not available in this browser.');return;}if(listening){recognition.stop();return;}recognition=new SR();recognition.lang='en-IN';recognition.interimResults=true;recognition.continuous=false;recognition.onstart=()=>{listening=true;$('#micButton').classList.add('listening');setState('listening','Listening…');};recognition.onresult=e=>{const transcript=[...e.results].map(r=>r[0].transcript).join('');input.value=transcript;send.disabled=!transcript.trim();if(e.results[e.results.length-1].isFinal)submit(transcript);};recognition.onerror=()=>toast('I’m having trouble accessing the microphone.');recognition.onend=()=>{listening=false;$('#micButton').classList.remove('listening');setState('','KRITAM is ready');};recognition.start();}
+function startVoice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Voice recognition is not available in this browser.');return;}if(listening){recognition.stop();return;}recognition=new SR();recognition.lang='en-IN';recognition.interimResults=true;recognition.continuous=false;recognition.onstart=()=>{listening=true;$('#micButton').classList.add('listening');setState('listening','Listening…');};recognition.onresult=e=>{const transcript=[...e.results].map(r=>r[0].transcript).join('');input.value=transcript;send.disabled=!transcript.trim();if(e.results[e.results.length-1].isFinal)submit(transcript);};recognition.onerror=()=>{setState('idle','KRITAM is ready');toast('I’m having trouble accessing the microphone.');};recognition.onend=()=>{listening=false;$('#micButton').classList.remove('listening');if(!speechSynthesis?.speaking)setState('idle','KRITAM is ready');};recognition.start();}
 $('#micButton').onclick=startVoice;$('#stopListening').onclick=()=>{recognition?.stop();toast('Wake listening is off.');};
 window.addEventListener('online',()=>$('#networkTag').textContent='ONLINE');window.addEventListener('offline',()=>{$('#networkTag').textContent='OFFLINE';respond('I’m offline right now, but I can still help with local tasks.');});
