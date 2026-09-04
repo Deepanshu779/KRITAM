@@ -4,11 +4,11 @@ const path = require('path');
 module.paths.unshift(path.join(__dirname, '..', 'runtime', 'node_modules'));
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell } = require('electron');
 const https = require('https');
+const { getStatus: getOllamaStatus, chat: ollamaChat } = require(path.join(__dirname, '..', 'core', 'ollama'));
 
 let mainWindow, companionWindow, tray;
 let companionState = { state: 'idle', text: 'KRITAM IS READY' };
 const appRoot = path.join(__dirname, '..');
-// Keep Chromium's cache inside KRITAM rather than a potentially restricted system cache.
 const dataRoot = path.join(appRoot, '.kritam-data');
 app.setPath('userData', dataRoot);
 app.setPath('sessionData', path.join(dataRoot, 'session'));
@@ -30,9 +30,7 @@ function fetchHeadlines() {
 function setCompanionState(state = 'idle', text) {
   const allowed = ['idle', 'listening', 'thinking', 'speaking', 'happy'];
   companionState = { state: allowed.includes(state) ? state : 'idle', text: text || undefined };
-  if (companionWindow && !companionWindow.isDestroyed()) {
-    companionWindow.webContents.send('companion:state', companionState);
-  }
+  if (companionWindow && !companionWindow.isDestroyed()) companionWindow.webContents.send('companion:state', companionState);
   return companionState;
 }
 
@@ -68,5 +66,10 @@ app.on('activate', () => mainWindow?.show());
 ipcMain.handle('news:get', fetchHeadlines);
 ipcMain.handle('companion:show', showCompanion);
 ipcMain.handle('companion:set-state', (_event, state, text) => setCompanionState(state, text));
+ipcMain.handle('ollama:status', () => getOllamaStatus());
+ipcMain.handle('ollama:chat', async (_event, messages, options) => {
+  if (!Array.isArray(messages) || messages.length === 0) throw new Error('A conversation is required.');
+  return ollamaChat(messages, options || {});
+});
 ipcMain.handle('app:open-url', async (_event, url) => { const approved = /^https:\/\/(www\.)?(youtube\.com|google\.com|github\.com)/.test(url); if (!approved) throw new Error('This website is not on the approved list.'); await shell.openExternal(url); });
 ipcMain.handle('login:set-enabled', (_event, enabled) => { app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath }); return app.getLoginItemSettings().openAtLogin; });
