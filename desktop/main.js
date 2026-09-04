@@ -1,7 +1,4 @@
 const path = require('path');
-// Electron was installed in the isolated runtime folder to avoid a locked root package.
-// Put it first in this module's lookup path so `require('electron')` receives Electron's API.
-module.paths.unshift(path.join(__dirname, '..', 'runtime', 'node_modules'));
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell } = require('electron');
 const https = require('https');
 const { getStatus: getOllamaStatus, chat: ollamaChat } = require(path.join(__dirname, '..', 'core', 'ollama'));
