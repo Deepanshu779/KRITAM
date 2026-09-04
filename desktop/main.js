@@ -34,6 +34,13 @@ function setCompanionState(state = 'idle', text) {
 function createMainWindow() {
   mainWindow = new BrowserWindow({ width: 1180, height: 760, minWidth: 850, minHeight: 600, show: false, backgroundColor: '#121214', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true } });
   mainWindow.loadFile(path.join(appRoot, 'index.html'));
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    console.error(`KRITAM failed to load UI: ${errorCode} ${errorDescription}`);
+  });
   mainWindow.on('close', (event) => { if (!app.isQuitting) { event.preventDefault(); mainWindow.hide(); } });
 }
 function createCompanionWindow() {
