@@ -4,6 +4,11 @@
   "private": true,
   "description": "A privacy-first personal desktop AI companion.",
   "main": "desktop/main.js",
-  "scripts": { "postinstall": "npm install --prefix runtime", "start": "set ELECTRON_RUN_AS_NODE=&& node runtime/node_modules/electron/cli.js .", "dev": "set ELECTRON_RUN_AS_NODE=&& node runtime/node_modules/electron/cli.js ." },
-  "devDependencies": { "electron": "^37.2.6" }
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^37.2.6"
+  }
 }
