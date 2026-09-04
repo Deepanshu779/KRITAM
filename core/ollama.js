@@ -2,6 +2,7 @@ const http = require('http');
 
 const DEFAULT_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_MODEL = process.env.KRITAM_OLLAMA_MODEL || 'llama3.2:3b';
+const DEFAULT_CHAT_TIMEOUT = 300000;
 
 function requestJson(path, options = {}) {
   return new Promise((resolve, reject) => {
@@ -41,10 +42,20 @@ async function getStatus() {
 
 async function chat(messages, options = {}) {
   const model = options.model || process.env.KRITAM_OLLAMA_MODEL || DEFAULT_MODEL;
+  const timeout = options.timeout || DEFAULT_CHAT_TIMEOUT;
   const data = await requestJson('/api/chat', {
     method: 'POST',
-    timeout: options.timeout || 120000,
-    body: { model, messages, stream: false, options: { temperature: 0.7 } },
+    timeout,
+    body: {
+      model,
+      messages,
+      stream: false,
+      keep_alive: options.keep_alive || '10m',
+      options: {
+        temperature: options.temperature ?? 0.7,
+        num_predict: options.num_predict || 256,
+      },
+    },
   });
   return { model, message: data.message?.content || '', done: data.done !== false };
 }
