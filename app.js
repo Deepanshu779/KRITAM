@@ -3,6 +3,7 @@ const input = $('#messageInput'), send = $('#sendButton'), messages = $('#messag
 const statusText = $('#statusText'), orb = $('#orbWrap'), dialog = $('#permissionDialog');
 let pendingAction = null, recognition = null, listening = false;
 let localAI = { available: false, models: [], selectedModel: null };
+let availableVoices = [];
 const avatarStateText = { idle: 'KRITAM is ready', listening: 'KRITAM is listening', thinking: 'KRITAM is thinking', speaking: 'KRITAM is speaking', happy: 'KRITAM is happy' };
 
 function setState(state, text) {
@@ -18,7 +19,48 @@ function addMessage(text, role = 'assistant') {
   messages.append(item); messages.parentElement.scrollTop = messages.parentElement.scrollHeight;
 }
 function toast(text) { const t=$('#toast');t.textContent=text;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3200); }
-function speak(text) { if (!('speechSynthesis' in window)) return; speechSynthesis.cancel(); const phrase = new SpeechSynthesisUtterance(text); phrase.rate = 1.06; phrase.pitch = 1.03; phrase.onstart=()=>setState('speaking','KRITAM is speaking'); phrase.onend=()=>setState('idle','KRITAM is ready'); speechSynthesis.speak(phrase); }
+function loadVoices() {
+  if (!('speechSynthesis' in window)) return;
+  availableVoices = speechSynthesis.getVoices();
+}
+function pickFriendlyVoice(text) {
+  if (!availableVoices.length) loadVoices();
+  if (!availableVoices.length) return null;
+
+  const isHindiScript = /[\u0900-\u097F]/.test(text);
+  const langPreferences = isHindiScript
+    ? ['hi-IN', 'hi']
+    : ['en-IN', 'en-US', 'en-GB', 'en'];
+  const femaleNames = ['jenny', 'aria', 'sara', 'zira', 'hazel', 'samantha', 'female', 'heera', 'neerja'];
+  const naturalNames = ['online', 'natural', 'neural'];
+
+  const sameLanguage = availableVoices.filter((voice) =>
+    langPreferences.some((lang) => voice.lang?.toLowerCase() === lang.toLowerCase() || voice.lang?.toLowerCase().startsWith(`${lang.toLowerCase()}-`))
+  );
+  const pool = sameLanguage.length ? sameLanguage : availableVoices;
+  const female = pool.filter((voice) => femaleNames.some((name) => voice.name?.toLowerCase().includes(name)));
+  const naturalFemale = female.filter((voice) => naturalNames.some((name) => voice.name?.toLowerCase().includes(name)));
+  return naturalFemale[0] || female[0] || pool.find((voice) => voice.default) || pool[0] || null;
+}
+function speak(text) {
+  if (!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const phrase = new SpeechSynthesisUtterance(text);
+  const voice = pickFriendlyVoice(text);
+  if (voice) {
+    phrase.voice = voice;
+    phrase.lang = voice.lang;
+  } else {
+    phrase.lang = /[\u0900-\u097F]/.test(text) ? 'hi-IN' : 'en-IN';
+  }
+  phrase.rate = 0.96;
+  phrase.pitch = 1.08;
+  phrase.volume = 0.96;
+  phrase.onstart=()=>setState('speaking','KRITAM is speaking');
+  phrase.onend=()=>setState('idle','KRITAM is ready');
+  phrase.onerror=()=>setState('idle','KRITAM is ready');
+  speechSynthesis.speak(phrase);
+}
 function respond(text, say = true) { setState('thinking','KRITAM is thinking'); setTimeout(()=>{addMessage(text); if(say) speak(text.replace(/<[^>]*>/g,'')); else setState('idle','KRITAM is ready');},520); }
 async function refreshLocalAI() {
   if (!window.kritamDesktop?.getOllamaStatus) return;
@@ -76,4 +118,5 @@ $('#showCompanion').onclick=()=>window.kritamDesktop ? window.kritamDesktop.show
 function startVoice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Voice recognition is not available in this browser.');return;}if(listening){recognition.stop();return;}recognition=new SR();recognition.lang='en-IN';recognition.interimResults=true;recognition.continuous=false;recognition.onstart=()=>{listening=true;$('#micButton').classList.add('listening');setState('listening','Listening…');};recognition.onresult=e=>{const transcript=[...e.results].map(r=>r[0].transcript).join('');input.value=transcript;send.disabled=!transcript.trim();if(e.results[e.results.length-1].isFinal)submit(transcript);};recognition.onerror=()=>{setState('idle','KRITAM is ready');toast('I’m having trouble accessing the microphone.');};recognition.onend=()=>{listening=false;$('#micButton').classList.remove('listening');if(!speechSynthesis?.speaking)setState('idle','KRITAM is ready');};recognition.start();}
 $('#micButton').onclick=startVoice;$('#stopListening').onclick=()=>{recognition?.stop();toast('Wake listening is off.');};
 window.addEventListener('online',()=>$('#networkTag').textContent='ONLINE');window.addEventListener('offline',()=>{$('#networkTag').textContent='OFFLINE';respond('I’m offline right now, but I can still help with local tasks.');});
-window.addEventListener('DOMContentLoaded', refreshLocalAI);
+window.addEventListener('DOMContentLoaded', ()=>{ loadVoices(); refreshLocalAI(); });
+if ('speechSynthesis' in window && 'onvoiceschanged' in speechSynthesis) speechSynthesis.onvoiceschanged = loadVoices;
