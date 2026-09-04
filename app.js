@@ -34,7 +34,7 @@ async function askLocalAI(userText) {
   if (!localAI.available) return null;
   if (!localAI.models?.length) throw new Error('Ollama is running, but no local model is installed.');
   const messagesForAI = [
-    { role: 'system', content: 'You are KRITAM, a helpful privacy-first personal desktop AI companion. Be concise, friendly, practical, and honest. Do not claim to have performed desktop actions. If a request requires a tool, explain that KRITAM will handle it through its permission system.' },
+    { role: 'system', content: 'You are KRITAM, a helpful privacy-first personal desktop AI companion. Be concise, friendly, practical, and honest. Understand English and Hinglish. Reply in the language style the user uses. Do not claim to have performed desktop actions. If a request requires a tool, explain that KRITAM will handle it through its permission system.' },
     { role: 'user', content: userText },
   ];
   const result = await window.kritamDesktop.ollamaChat(messagesForAI, { model: localAI.selectedModel });
@@ -57,12 +57,11 @@ function askPermission(action) { pendingAction=action; $('#dialogTitle').textCon
 function runAction() { if(!pendingAction)return; const a=pendingAction; dialog.close(); if(a.url) { if(window.kritamDesktop) window.kritamDesktop.openUrl(a.url).catch(() => toast('KRITAM blocked that website.')); else window.open(a.url,'_blank','noopener'); } if(a.camera) requestCamera(); toast(`${a.label} approved for this session.`); respond(`Done — ${a.done}.`, false); pendingAction=null; }
 function requestCamera(){navigator.mediaDevices?.getUserMedia({video:true}).then(stream=>{stream.getTracks().forEach(t=>t.stop());toast('Camera permission was granted, then released.');}).catch(()=>toast('Camera access was not available.'));}
 async function interpret(text) {
-  const q=text.toLowerCase();
-  if(/youtube|open.*(website|google|github)/.test(q)){const site=q.includes('youtube')?['YouTube','https://www.youtube.com']:q.includes('github')?['GitHub','https://github.com']:['Google','https://google.com'];addMessage(`I found a desktop action for that. I’ll only open it after you approve.`, 'assistant');actionCard('Open website',site[0],{kind:'Desktop action',label:`Open ${site[0]}`,description:`KRITAM wants to open ${site[0]} in your default browser.`,url:site[1],done:`${site[0]} is opening in your browser`});return;}
-  if(/camera|take.*photo/.test(q)){respond('I can use your camera only for the moment you approve.');actionCard('Camera access','One-time permission',{kind:'Sensitive access',label:'Use camera once',description:'KRITAM wants one-time camera access. A visible browser permission prompt will appear.',camera:true,done:'camera permission request has been sent'});return;}
-  if(/javascript.*promise|promise.*javascript/.test(q)){respond('A <b>Promise</b> is JavaScript’s placeholder for a result that will arrive later—like ordering chai and getting a token first. It can be <b>pending</b>, <b>fulfilled</b>, or <b>rejected</b>. Use <b>await</b> to pause inside an async function until it settles. Want a tiny code example?');return;}
-  if(/study|focus/.test(q)){respond('Let’s make it easy: try one 45-minute focus block, then take a 10-minute break. Pick one clear outcome—like “finish chapter 3 notes”—and I’ll help you stay on track.');return;}
-  if(/(kya chal raha|hello|hi|hey)/.test(q)){respond('Bas ready hoon 😊 Batao, kya karna hai?');return;}
+  const q=text.toLowerCase().trim();
+  if(/youtube|open\s+(the\s+)?(website|google|github)/.test(q)){const site=q.includes('youtube')?['YouTube','https://www.youtube.com']:q.includes('github')?['GitHub','https://github.com']:['Google','https://google.com'];addMessage(`I found a desktop action for that. I’ll only open it after you approve.`, 'assistant');actionCard('Open website',site[0],{kind:'Desktop action',label:`Open ${site[0]}`,description:`KRITAM wants to open ${site[0]} in your default browser.`,url:site[1],done:`${site[0]} is opening in your browser`});return;}
+  if(/camera|take\s+(a\s+)?photo/.test(q)){respond('I can use your camera only for the moment you approve.');actionCard('Camera access','One-time permission',{kind:'Sensitive access',label:'Use camera once',description:'KRITAM wants one-time camera access. A visible browser permission prompt will appear.',camera:true,done:'camera permission request has been sent'});return;}
+  if(/\b(study|focus)\b/.test(q)){respond('Let’s make it easy: try one 45-minute focus block, then take a 10-minute break. Pick one clear outcome—like “finish chapter 3 notes”—and I’ll help you stay on track.');return;}
+  if(/^(kya chal raha|hello|hi|hey|namaste)\b/.test(q)){respond('Bas ready hoon 😊 Batao, kya karna hai?');return;}
   await respondWithLocalAI(text);
 }
 function submit(text=input.value.trim()){if(!text)return;addMessage(text,'user');input.value='';send.disabled=true;interpret(text);}
