@@ -6,6 +6,7 @@ const https = require('https');
 const { getStatus: getOllamaStatus, chat: ollamaChat } = require(path.join(__dirname, '..', 'core', 'ollama'));
 const { planLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent'));
 const { planTask } = require(path.join(__dirname, '..', 'core', 'task-planner'));
+const { planConversationalMessage } = require(path.join(__dirname, '..', 'core', 'conversation-agent'));
 const { runLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent-runtime'));
 const { validateToolRequest } = require(path.join(__dirname, '..', 'core', 'policy'));
 const { executeTool } = require(path.join(__dirname, '..', 'core', 'tools'));
@@ -23,6 +24,7 @@ const { createActionRecord, verifyResult, applyScreenVerification } = require(pa
 
 let mainWindow, companionWindow, tray;
 let companionState = { state: 'idle', text: 'KRITAM IS READY' };
+let conversationState = null;
 const appRoot = path.join(__dirname, '..');
 const dataRoot = path.join(appRoot, '.kritam-data');
 app.setPath('userData', dataRoot);
@@ -105,6 +107,14 @@ ipcMain.handle('task:plan', (_event, text) => {
   audit.record('task.planned', { steps: plan?.steps?.length || 0 });
   return plan;
 });
+ipcMain.handle('conversation:plan', (_event, text) => {
+  const result = planConversationalMessage(text, conversationState);
+  if (!result) return null;
+  conversationState = result.state;
+  audit.record('conversation.planned', { intent: result.intent, needsDetails: result.needsDetails, searchPlatforms: result.platforms.length });
+  return result;
+});
+ipcMain.handle('conversation:clear', () => { conversationState = null; return true; });
 ipcMain.handle('agent:run-local', async (_event, text) => {
   try {
     const result = await runLocalCommand(text);
