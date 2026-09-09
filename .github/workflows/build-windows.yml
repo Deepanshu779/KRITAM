@@ -2,6 +2,8 @@ name: KRITAM Windows Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -40,7 +42,18 @@ jobs:
           path: dist/*.exe
           if-no-files-found: error
 
-      - name: Publish GitHub Release
+      - name: Publish latest downloadable release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: KRITAM Build ${{ github.run_number }}
+          files: dist/*.exe
+          generate_release_notes: true
+          make_latest: true
+
+      - name: Publish versioned GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
