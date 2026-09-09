@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "test": "node --test ../core/agent.test.js ../core/policy.test.js"
+  },
   "dependencies": {
     "electron": "^37.10.3"
   }
