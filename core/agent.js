@@ -30,6 +30,10 @@ function planLocalCommand(text) {
     return makeTool('analyze_screen', {}, 'Analyze the current KRITAM screen locally with a vision-capable Ollama model.', 'Analyze my screen');
   }
 
+  if (/\b(take|capture)\s+(a\s+)?screenshot\b/.test(q) || /^screenshot$/.test(q) || /\bcapture (the )?screen\b/.test(q)) {
+    return makeTool('capture_screen', {}, 'Capture the current KRITAM window after explicit permission.', 'Capture my screen');
+  }
+
   const website = Object.keys(WEBSITE_ALIASES).find((name) => new RegExp(`\\b(?:open|go to|visit)\\s+(?:the\\s+)?${name}\\b`, 'i').test(q));
   if (website) return makeTool('open_url', { url: WEBSITE_ALIASES[website] }, `Open ${website} in your default browser.`, `Open ${website}`);
 
