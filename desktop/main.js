@@ -1,4 +1,6 @@
 const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, desktopCapturer, screen } = require('electron');
 const https = require('https');
 const { getStatus: getOllamaStatus, chat: ollamaChat } = require(path.join(__dirname, '..', 'core', 'ollama'));
@@ -13,6 +15,8 @@ const { createScreenCapture } = require(path.join(__dirname, '..', 'core', 'scre
 const { createVisionAnalyzer } = require(path.join(__dirname, '..', 'core', 'vision'));
 const { createVisionRuntime } = require(path.join(__dirname, '..', 'core', 'vision-runtime'));
 const { buildTargetPrompt, parseVisionTargets } = require(path.join(__dirname, '..', 'core', 'screen-targets'));
+const { createActionRecord, verifyResult, applyScreenVerification } = require(path.join(__dirname, '..', 'core', 'action-verifier'));
+const { verifyScreenAction } = require(path.join(__dirname, '..', 'core', 'verification'));
 
 let mainWindow, companionWindow, tray;
 let companionState = { state: 'idle', text: 'KRITAM IS READY' };
@@ -82,23 +86,65 @@ async function captureDesktopScreen() {
   const display = screen.getPrimaryDisplay();
   const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: display.size.width, height: display.size.height } });
   if (!sources.length || sources[0].thumbnail.isEmpty()) throw new Error('No desktop screen was available for capture.');
-  return { image: sources[0].thumbnail, width: display.size.width, height: display.size.height };
+  const image = sources[0].thumbnail;
+  const size = image.getSize();
+  return { image, width: size.width, height: size.height, display };
+}
+
+async function captureDesktopFile() {
+  const desktop = await captureDesktopScreen();
+  const tempDir = path.join(app.getPath('userData'), 'screenshots');
+  fs.mkdirSync(tempDir, { recursive: true });
+  const filePath = path.join(tempDir, `kritam-desktop-${Date.now()}.png`);
+  fs.writeFileSync(filePath, desktop.image.toPNG());
+  return { ...desktop, filePath };
 }
 
 async function findDesktopTargets(instruction) {
-  const desktop = await captureDesktopScreen();
-  const tempDir = path.join(app.getPath('userData'), 'screenshots');
-  const fs = require('fs');
-  fs.mkdirSync(tempDir, { recursive: true });
-  const filePath = path.join(tempDir, `kritam-desktop-${Date.now()}.png`);
-  desktop.image.toPNG();
-  fs.writeFileSync(filePath, desktop.image.toPNG());
+  const validated = validateToolRequest({ tool: 'screen_targets', arguments: { instruction } });
+  if (validated.policy.approval !== 'always') throw new Error('Screen target detection must require explicit approval.');
+  const desktop = await captureDesktopFile();
   try {
-    const analysis = await createVisionAnalyzer().analyzeImage(filePath, buildTargetPrompt(instruction));
-    return { type: 'screen-targets', width: desktop.width, height: desktop.height, targets: parseVisionTargets(analysis.text), model: analysis.model };
+    const analysis = await createVisionAnalyzer().analyzeImage(desktop.filePath, buildTargetPrompt(instruction));
+    return { type: 'screen-targets', width: desktop.width, height: desktop.height, display: desktop.display.bounds, targets: parseVisionTargets(analysis.text), model: analysis.model };
   } finally {
-    try { fs.unlinkSync(filePath); } catch (_) {}
+    try { fs.unlinkSync(desktop.filePath); } catch (_) {}
   }
+}
+
+function mapTargetToDisplay(target, imageWidth, imageHeight, bounds) {
+  const x = Number(target?.x);
+  const y = Number(target?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || imageWidth <= 0 || imageHeight <= 0) throw new Error('Invalid screen target coordinates.');
+  const safeX = Math.max(0, Math.min(imageWidth, x));
+  const safeY = Math.max(0, Math.min(imageHeight, y));
+  return {
+    x: Math.round(bounds.x + (safeX / imageWidth) * bounds.width),
+    y: Math.round(bounds.y + (safeY / imageHeight) * bounds.height),
+  };
+}
+
+async function clickDesktopTarget(target, imageWidth, imageHeight, instruction) {
+  if (!target || target.actionable === false) throw new Error('The selected target is not actionable.');
+  const confidence = Number(target.confidence);
+  if (!Number.isFinite(confidence) || confidence < 0.75) throw new Error('KRITAM will not click a low-confidence screen target.');
+  const display = screen.getPrimaryDisplay();
+  const point = mapTargetToDisplay(target, imageWidth, imageHeight, display.bounds);
+  const request = validateToolRequest({ tool: 'mouse_click', arguments: point });
+  const record = createActionRecord(request);
+  const before = await captureDesktopFile();
+  try {
+    const result = await computerInput.click(request.arguments);
+    const confirmed = verifyResult(record, result);
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    const after = await captureDesktopFile();
+    try {
+      const beforeHash = crypto.createHash('sha256').update(fs.readFileSync(before.filePath)).digest('hex');
+      const afterHash = crypto.createHash('sha256').update(fs.readFileSync(after.filePath)).digest('hex');
+      const changed = beforeHash !== afterHash;
+      return { ...confirmed, instruction, target: { ...target, ...point }, verification: applyScreenVerification(confirmed, { changed, confidence: changed ? 1 : 0, note: changed ? 'Desktop image changed after the click.' : 'Desktop image was unchanged after the click.' }) };
+    } finally { try { fs.unlinkSync(after.filePath); } catch (_) {} }
+  } finally { try { fs.unlinkSync(before.filePath); } catch (_) {} }
 }
 
 ipcMain.handle('tool:execute', async (_event, request) => {
@@ -106,6 +152,7 @@ ipcMain.handle('tool:execute', async (_event, request) => {
   let result;
   if (validated.tool === 'capture_screen') result = await screenCapture.capture();
   else if (validated.tool === 'analyze_screen') result = await vision.analyzeScreen(validated.arguments.prompt);
+  else if (validated.tool === 'screen_targets') result = await findDesktopTargets(validated.arguments.instruction);
   else if (validated.tool === 'mouse_click') result = await computerInput.click(validated.arguments);
   else if (validated.tool === 'type_text') result = await computerInput.typeText(validated.arguments);
   else result = await executeTool(validated);
@@ -113,6 +160,7 @@ ipcMain.handle('tool:execute', async (_event, request) => {
   return { ...result, tool: validated.tool };
 });
 ipcMain.handle('screen:targets', async (_event, instruction) => findDesktopTargets(instruction));
+ipcMain.handle('screen:click-target', async (_event, target, imageWidth, imageHeight, instruction) => clickDesktopTarget(target, imageWidth, imageHeight, instruction));
 ipcMain.handle('app:open-url', async (_event, url) => executeTool({ tool: 'open_url', arguments: { url } }));
 ipcMain.handle('login:set-enabled', (_event, enabled) => { app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath }); return app.getLoginItemSettings().openAtLogin; });
 ipcMain.handle('memory:get-recent', (_event, conversationId = 'default', limit = 50) => memory.getRecentMessages(conversationId, limit));
