@@ -1,87 +1,9 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KRITAM — Personal AI Companion</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
-    <style>
-      .mic-button svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block}
-      .mic-button{border-radius:9px;transition:background .18s,color .18s,transform .18s}
-      .mic-button:hover{background:#29292d;color:#f2f2ef}
-      .mic-button.listening{background:rgba(183,238,161,.12);transform:scale(1.04)}
-      .profile{border-radius:9px}
-    </style>
-  </head>
-  <body>
-    <main class="app-shell">
-      <aside class="sidebar">
-        <div class="brand"><span class="brand-mark">K</span><span>KRITAM</span></div>
-        <button class="new-chat" id="newChat"><span>+</span> New conversation <kbd>Ctrl K</kbd></button>
-        <nav class="conversation-list" aria-label="Conversation history">
-          <p class="nav-label">RECENT</p>
-          <button class="conversation active"><i></i> Study companion</button>
-          <button class="conversation"><i></i> Project planning</button>
-          <button class="conversation"><i></i> Morning routine</button>
-        </nav>
-        <div class="sidebar-bottom">
-          <button class="side-action" id="privacyBtn"><span>⌾</span> Privacy centre</button>
-          <label class="startup-control"><input id="startupToggle" type="checkbox" /><span>Run when I sign in</span></label>
-          <button class="side-action" id="showCompanion"><span>✦</span> Show companion</button>
-          <button class="side-action"><span>⚙</span> Settings</button>
-          <div class="profile"><div class="profile-avatar">K</div><div><strong>Personal workspace</strong><small>Local KRITAM session</small></div></div>
-        </div>
-      </aside>
-
-      <section class="workspace">
-        <header class="topbar">
-          <div class="assistant-status"><span class="pulse-dot" id="statusDot"></span><span id="statusText">KRITAM is ready</span><span class="offline-tag" id="networkTag">ONLINE</span><span class="offline-tag" id="aiTag">LOCAL AI: CHECKING</span></div>
-          <div class="header-actions"><button class="icon-button" id="themeBtn" title="Toggle theme">☼</button><button class="avatar-mini" aria-label="KRITAM">K</button></div>
-        </header>
-
-        <div class="chat-area" id="chatArea">
-          <section class="welcome" id="welcome">
-            <div class="orb-wrap" id="orbWrap"><div class="orb-core"><span class="orb-k">K</span></div><span class="orb-ring ring-one"></span><span class="orb-ring ring-two"></span></div>
-            <p class="eyebrow">YOUR PERSONAL AI COMPANION</p>
-            <h1>What can I help you with?</h1>
-            <p class="welcome-copy">Talk naturally. Ask KRITAM to explain something, find options, open apps or websites, or help with tasks on your computer.</p>
-            <div class="suggestions">
-              <button data-prompt="Explain JavaScript promises in simple terms"><b>✦</b><span>Help me understand<br /><strong>JavaScript promises</strong></span><em>›</em></button>
-              <button data-prompt="Open YouTube"><b>◉</b><span>Open a website<br /><strong>YouTube</strong></span><em>›</em></button>
-              <button data-prompt="Plan a focused study session"><b>◷</b><span>Plan my next<br /><strong>study session</strong></span><em>›</em></button>
-            </div>
-          </section>
-          <section class="messages hidden" id="messages" aria-live="polite"></section>
-        </div>
-
-        <footer class="composer-area">
-          <div class="listening-strip" id="listeningStrip"><span></span><span>Voice input is available from the microphone</span><button id="stopListening">Turn off</button></div>
-          <form class="composer" id="composer">
-            <button type="button" class="add-button" title="Attach file" aria-label="Attach file">+</button>
-            <input id="messageInput" autocomplete="off" placeholder="Talk or type to KRITAM…" aria-label="Message KRITAM" />
-            <button type="button" class="mic-button" id="micButton" title="Talk to KRITAM" aria-label="Talk to KRITAM">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 0 0-7 0v5a3.5 3.5 0 0 0 3.5 3.5Z"/><path d="M18.5 11a6.5 6.5 0 0 1-13 0M12 17.5V21M8.5 21h7"/></svg>
-            </button>
-            <button class="send-button" id="sendButton" aria-label="Send message" disabled>↑</button>
-          </form>
-          <p class="disclaimer">KRITAM can make mistakes. Sensitive desktop actions require your approval.</p>
-        </footer>
-      </section>
-    </main>
-
-    <dialog id="permissionDialog" class="permission-dialog">
-      <div class="dialog-icon" id="dialogIcon">⌾</div><p class="eyebrow">YOUR CONTROL COMES FIRST</p><h2 id="dialogTitle">Approve this action?</h2>
-      <p id="dialogText">KRITAM wants permission before continuing.</p>
-      <div class="permission-detail"><span id="dialogDetail">Action</span><strong id="dialogAction">Open website</strong></div>
-      <div class="dialog-actions"><button class="secondary" id="denyAction">Not now</button><button class="primary" id="approveAction">Allow once</button></div>
-      <p class="dialog-footnote">You can change permissions anytime in Privacy centre.</p>
-    </dialog>
-    <div class="toast" id="toast" role="status"></div>
-    <script src="app.js"></script>
-    <script src="voice-controller.js"></script>
-    <script src="conversation-ui.js"></script>
-  </body>
-</html>
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KRITAM — Personal AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" /><link rel="stylesheet" href="styles.css" />
+</head>
+<body><main class="app-shell"><aside class="sidebar"><div class="brand"><span class="brand-mark">K</span><span>KRITAM</span><span class="brand-live">LOCAL</span></div><button class="new-chat" id="newChat"><span>＋</span> New conversation <kbd>Ctrl K</kbd></button><nav class="conversation-list"><p class="nav-label">RECENT</p><button class="conversation active"><i></i> Current conversation</button></nav><div class="sidebar-bottom"><button class="side-action" id="privacyBtn"><span>◈</span> Privacy centre</button><label class="startup-control"><input id="startupToggle" type="checkbox" /><span>Run when I sign in</span></label><button class="side-action" id="showCompanion"><span>✦</span> Floating companion</button><button class="side-action" id="themeBtn"><span>◐</span> Toggle appearance</button><div class="profile"><div class="profile-avatar">K</div><div><strong>KRITAM</strong><small>Private local session</small></div><span class="profile-dot"></span></div></div></aside><section class="workspace"><header class="topbar"><div class="assistant-status"><span class="pulse-dot"></span><span id="statusText">KRITAM is ready</span><span class="status-pill" id="networkTag">ONLINE</span><span class="status-pill ai" id="aiTag">LOCAL AI: CHECKING</span></div><div class="header-actions"><button class="avatar-mini" aria-label="KRITAM">K</button></div></header><div class="chat-area" id="chatArea"><section class="welcome" id="welcome"><div class="orb-wrap" id="orbWrap"><div class="orb-core"><span class="orb-k">K</span><span class="orb-glow"></span></div><span class="orb-ring ring-one"></span><span class="orb-ring ring-two"></span></div><div class="hero-badge"><span></span> PRIVATE • LOCAL • READY</div><h1>Talk to KRITAM.</h1><p class="welcome-copy">Ask naturally. KRITAM can chat with you, understand everyday requests, open apps and websites, and help with computer tasks.</p><div class="suggestions"><button data-prompt="Explain JavaScript promises in simple terms"><span class="suggestion-icon">✦</span><span><small>Learn</small><strong>Explain JavaScript promises</strong></span><em>›</em></button><button data-prompt="Open YouTube"><span class="suggestion-icon">↗</span><span><small>Do</small><strong>Open YouTube</strong></span><em>›</em></button><button data-prompt="My brother wants to watch a cartoon"><span class="suggestion-icon">♡</span><span><small>Try natural language</small><strong>Find a cartoon to watch</strong></span><em>›</em></button></div></section><section class="messages hidden" id="messages" aria-live="polite"></section></div><footer class="composer-area"><div class="voice-status-row"><div class="listening-strip" id="listeningStrip"><span class="voice-dot"></span><span>Press the microphone and speak naturally</span><button id="stopListening" disabled>Stop</button></div><label class="wake-control"><input id="wakeToggle" type="checkbox" /><span>Hey KRITAM</span><small id="wakeStatus">Wake word off</small></label></div><form class="composer" id="composer"><button type="button" class="add-button" title="Attachments">＋</button><input id="messageInput" autocomplete="off" placeholder="Talk or type to KRITAM…" aria-label="Message KRITAM" /><button type="button" class="mic-button" id="micButton" title="Talk to KRITAM" aria-label="Talk to KRITAM"><svg viewBox="0 0 24 24"><path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 0 0-7 0v5a3.5 3.5 0 0 0 3.5 3.5Z"/><path d="M18.5 11a6.5 6.5 0 0 1-13 0M12 17.5V21M8.5 21h7"/></svg></button><button class="send-button" id="sendButton" aria-label="Send message" disabled>↑</button></form><p class="disclaimer">Ordinary navigation is frictionless. Sensitive screen control and private data access stay protected.</p></footer></section></main><dialog id="permissionDialog" class="permission-dialog"><div class="dialog-icon">◈</div><p class="eyebrow">YOUR CONTROL</p><h2 id="dialogTitle">Approve this action?</h2><p id="dialogText">KRITAM wants permission before continuing.</p><div class="permission-detail"><span id="dialogDetail">Desktop action</span><strong id="dialogAction">Action</strong></div><div class="dialog-actions"><button class="secondary" id="denyAction">Not now</button><button class="primary" id="approveAction">Allow once</button></div><p class="dialog-footnote">Sensitive actions are never silently executed.</p></dialog><div class="toast" id="toast" role="status"></div><script src="app.js"></script><script src="voice-controller.js"></script><script src="conversation-ui.js"></script></body></html>
