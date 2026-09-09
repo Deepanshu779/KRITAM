@@ -12,6 +12,12 @@ const APP_ALIASES = Object.freeze({
   'file explorer': 'explorer',
 });
 
+const FOLDER_ALIASES = Object.freeze({
+  desktop: 'Desktop',
+  documents: 'Documents',
+  downloads: 'Downloads',
+});
+
 function makeTool(tool, arguments_, description, label) {
   return { tool, arguments: arguments_, description, label };
 }
@@ -25,6 +31,12 @@ function planLocalCommand(text) {
 
   const app = Object.keys(APP_ALIASES).find((name) => new RegExp(`\\b(?:open|launch|start)\\s+(?:the\\s+)?${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(q));
   if (app) return makeTool('open_app', { app: APP_ALIASES[app] }, `Launch ${APP_ALIASES[app]}.`, `Open ${APP_ALIASES[app]}`);
+
+  const folder = Object.keys(FOLDER_ALIASES).find((name) => new RegExp(`\\b(?:open|show|go to)\\s+(?:my\\s+|the\\s+)?${name}\\b`, 'i').test(q));
+  if (folder) {
+    const display = FOLDER_ALIASES[folder];
+    return makeTool('open_path', { path: display }, `Open your ${display} folder.`, `Open ${display}`);
+  }
 
   if (/\b(system info|system information|pc specs|computer specs)\b/.test(q)) {
     return makeTool('system_info', {}, 'Read basic local computer information.', 'Show system information');
