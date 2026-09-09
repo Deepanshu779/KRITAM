@@ -71,7 +71,7 @@ function actionCard(label, detail, action) {
 }
 function askPermission(action){pendingAction=action;$('#dialogTitle').textContent='Approve this action?';$('#dialogText').textContent=action.description;$('#dialogDetail').textContent=action.kind||'Desktop action';$('#dialogAction').textContent=action.label;dialog.showModal();}
 function actionFromStep(step, index, total) {
-  const risk = step.tool === 'type_text' || step.tool === 'mouse_click' || step.tool === 'capture_screen' || step.tool === 'analyze_screen' ? 'High risk' : step.tool === 'open_app' || step.tool === 'open_path' ? 'Medium risk' : 'Low risk';
+  const risk = step.tool === 'type_text' || step.tool === 'mouse_click' || step.tool === 'capture_screen' || step.tool === 'analyze_screen' || step.tool === 'screen_targets' ? 'High risk' : step.tool === 'open_app' || step.tool === 'open_path' ? 'Medium risk' : 'Low risk';
   return { kind:`Task step ${index + 1} of ${total} · ${risk}`, label:step.label||step.tool, description:`KRITAM will perform step ${index + 1} of ${total}: ${step.description||step.tool}. Only this step will run after approval.`, toolRequest:{tool:step.tool,arguments:step.arguments} };
 }
 async function runTaskPlan(plan) {
@@ -79,34 +79,56 @@ async function runTaskPlan(plan) {
     const step=plan.steps[index];
     const action=actionFromStep(step,index,plan.steps.length);
     action.taskPlan=plan; action.taskIndex=index;
-    if(['open_app','open_path','open_url','type_text','mouse_click','capture_screen','analyze_screen'].includes(step.tool)) {
-      actionCard(action.label,action.description,action); return;
-    }
+    if(['open_app','open_path','open_url','type_text','mouse_click','capture_screen','analyze_screen'].includes(step.tool)) { actionCard(action.label,action.description,action); return; }
     try { await window.kritamDesktop.executeTool(action.toolRequest); } catch(error) { toast(error.message||'Task step failed.'); return; }
   }
+}
+function isScreenClickCommand(text) { return /\b(click|press|select|tap)\b/i.test(String(text||'')); }
+function createScreenClickAction(instruction) {
+  return { kind:'Screen control · High risk', label:'Inspect screen for target', description:`KRITAM wants to inspect your desktop to locate the target for: “${instruction}”. Your screen is only inspected after approval; nothing will be clicked yet.`, screenInstruction:instruction };
+}
+function chooseTarget(targets) {
+  return (Array.isArray(targets) ? targets : []).filter((target) => target?.actionable !== false && Number(target?.confidence) >= 0.75).sort((a,b) => Number(b.confidence)-Number(a.confidence))[0] || null;
+}
+async function executeScreenClickFlow(action) {
+  if (!window.kritamDesktop?.findDesktopTargets) throw new Error('Screen control is unavailable in this desktop session.');
+  setState('thinking','Inspecting the desktop…');
+  const result = await window.kritamDesktop.findDesktopTargets(action.screenInstruction);
+  const target = chooseTarget(result?.targets);
+  if (!target) { addMessage('I could not find a high-confidence actionable target. I did not click anything.'); setState('idle','KRITAM is ready'); return; }
+  const clickAction = { kind:'Screen control · High risk', label:`Click “${target.label}”`, description:`I found “${target.label}” with ${Math.round(Number(target.confidence)*100)}% confidence. KRITAM will click only that target after your approval, then verify whether the desktop changed.`, screenClick:{ target, imageWidth:result.width, imageHeight:result.height, instruction:action.screenInstruction } };
+  actionCard(clickAction.label,clickAction.description,clickAction);
 }
 async function runAction(){
   if(!pendingAction)return; const a=pendingAction; dialog.close(); pendingAction=null;
   try {
+    if(a.screenInstruction){ await executeScreenClickFlow(a); return; }
+    if(a.screenClick){
+      setState('thinking','Clicking and verifying…');
+      const result=await window.kritamDesktop.clickDesktopTarget(a.screenClick.target,a.screenClick.imageWidth,a.screenClick.imageHeight,a.screenClick.instruction);
+      const verification=result?.verification||result?.record?.verification;
+      if(verification==='screen-confirmed') { const message=`Done — clicked “${a.screenClick.target.label}” and verified that the desktop changed.`; addMessage(message); speak(message); }
+      else { addMessage(`I clicked “${a.screenClick.target.label}”, but I could not confidently verify a screen change.`); toast('Action completed, verification was inconclusive.'); setState('idle','KRITAM is ready'); }
+      return;
+    }
     if(a.toolRequest){
       const result=await window.kritamDesktop.executeTool(a.toolRequest);
       if(a.taskPlan){
         const nextIndex=a.taskIndex+1;
-        if(nextIndex<a.taskPlan.steps.length){
-          const next=actionFromStep(a.taskPlan.steps[nextIndex],nextIndex,a.taskPlan.steps.length); next.taskPlan=a.taskPlan; next.taskIndex=nextIndex;
-          actionCard(next.label,next.description,next); toast(`Step ${nextIndex} ready for approval.`); return;
-        }
+        if(nextIndex<a.taskPlan.steps.length){ const next=actionFromStep(a.taskPlan.steps[nextIndex],nextIndex,a.taskPlan.steps.length); next.taskPlan=a.taskPlan; next.taskIndex=nextIndex; actionCard(next.label,next.description,next); toast(`Step ${nextIndex+1} ready for approval.`); return; }
         const message=`Done — all ${a.taskPlan.steps.length} task steps completed.`; addMessage(message); speak(message); return;
       }
       const message=a.successMessage||`Done — ${a.label.replace(/^Open /,'')} completed.`; addMessage(message); speak(message); return;
     }
-    if(a.url){await window.kritamDesktop.openUrl(a.url);addMessage(`Done — ${a.label.replace(/^Open /,'')} is opening.`);speak(`Done — ${a.label.replace(/^Open /,'')} is opening.`);return;}
+    if(a.url){await window.kritamDesktop.openUrl(a.url);const message=`Done — ${a.label.replace(/^Open /,'')} is opening.`;addMessage(message);speak(message);return;}
     if(a.camera){requestCamera();addMessage('Done — camera permission request has been sent.');}
+    if(a.done){dialog.close();addMessage(`Done — ${a.done}.`);speak(`Done — ${a.done}.`);}
   } catch(error){toast(error.message||'KRITAM blocked that action.');setState('idle','KRITAM is ready');}
 }
 function requestCamera(){navigator.mediaDevices?.getUserMedia({video:true}).then(stream=>{stream.getTracks().forEach(t=>t.stop());toast('Camera permission was granted, then released.');}).catch(()=>toast('Camera access was not available.'));}
 
 async function tryDesktopCommand(text){
+  if(isScreenClickCommand(text)) { actionCard('Inspect screen for target',`KRITAM can locate the target for “${text}” using desktop vision. Your screen will be inspected only after approval.`,createScreenClickAction(text)); return true; }
   if(window.kritamDesktop?.planTask){
     try { const plan=await window.kritamDesktop.planTask(text); if(plan?.type==='task-plan'){ addMessage(`I prepared a ${plan.steps.length}-step plan. I’ll ask for approval before each controlled action.`); runTaskPlan(plan); return true; } } catch(error){ console.error('Task planner error:',error); }
   }
@@ -117,7 +139,7 @@ async function tryDesktopCommand(text){
         if(result.executed){
           const data=result.result||{}; let message='Done.';
           if(result.request.tool==='get_time') message=`It’s ${data.local || 'the current local time'}.`;
-          else if(result.request.tool==='system_info') message=`Your PC is running ${data.platform||'the current system'} on ${data.arch||'its current architecture'}, with ${data.memoryGB ?? '?'} GB RAM. CPU: ${data.cpu||'unknown'}.`;
+          else if(result.request.tool==='system_info') message=`Your PC is running ${data.platform||'the current system'} on ${data.arch||'the current architecture'}, with ${data.memoryGB ?? '?'} GB RAM. CPU: ${data.cpu||'unknown'}.`;
           else if(result.request.tool==='app_state') message=`${data.app||'That app'} is ${data.running?'running':'not running'}.`;
           addMessage(message); speak(message); return true;
         }
