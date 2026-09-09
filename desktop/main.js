@@ -10,6 +10,7 @@ const { runLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent-ru
 const { validateToolRequest } = require(path.join(__dirname, '..', 'core', 'policy'));
 const { executeTool } = require(path.join(__dirname, '..', 'core', 'tools'));
 const computerInput = require(path.join(__dirname, '..', 'core', 'computer-input'));
+const keyboard = require(path.join(__dirname, '..', 'core', 'keyboard'));
 const { createMemoryStore } = require(path.join(__dirname, '..', 'core', 'memory'));
 const { createScreenCapture } = require(path.join(__dirname, '..', 'core', 'screen'));
 const { createVisionAnalyzer } = require(path.join(__dirname, '..', 'core', 'vision'));
@@ -35,143 +36,22 @@ function fetchHeadlines() {
         resolve(titles.length ? titles : ['I could not retrieve live headlines right now.']);
       });
     });
-    request.setTimeout(7000, () => request.destroy());
-    request.on('error', () => resolve(['You appear to be offline. I can still help with local tasks.']));
+    request.setTimeout(7000, () => request.destroy()); request.on('error', () => resolve(['You appear to be offline. I can still help with local tasks.']));
   });
 }
-function setCompanionState(state = 'idle', text) {
-  const allowed = ['idle', 'listening', 'thinking', 'speaking', 'happy'];
-  companionState = { state: allowed.includes(state) ? state : 'idle', text: text || undefined };
-  if (companionWindow && !companionWindow.isDestroyed()) companionWindow.webContents.send('companion:state', companionState);
-  return companionState;
-}
-function createMainWindow() {
-  mainWindow = new BrowserWindow({ width: 1180, height: 760, minWidth: 850, minHeight: 600, show: false, backgroundColor: '#121214', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true } });
-  mainWindow.loadFile(path.join(appRoot, 'index.html'));
-  mainWindow.once('ready-to-show', () => { mainWindow.show(); mainWindow.focus(); });
-  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => console.error(`KRITAM failed to load UI: ${errorCode} ${errorDescription}`));
-  mainWindow.on('close', (event) => { if (!app.isQuitting) { event.preventDefault(); mainWindow.hide(); } });
-}
-function createCompanionWindow() {
-  companionWindow = new BrowserWindow({ width: 330, height: 460, minWidth: 330, maxWidth: 330, minHeight: 460, maxHeight: 460, show: false, frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true, resizable: false, webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true } });
-  companionWindow.setAlwaysOnTop(true, 'floating'); companionWindow.loadFile(path.join(__dirname, 'companion.html'));
-  companionWindow.on('close', (event) => { if (!app.isQuitting) { event.preventDefault(); companionWindow.hide(); } });
-  companionWindow.once('ready-to-show', () => companionWindow.showInactive());
-  companionWindow.webContents.on('did-finish-load', () => setCompanionState(companionState.state, companionState.text));
-}
+function setCompanionState(state = 'idle', text) { const allowed = ['idle', 'listening', 'thinking', 'speaking', 'happy']; companionState = { state: allowed.includes(state) ? state : 'idle', text: text || undefined }; if (companionWindow && !companionWindow.isDestroyed()) companionWindow.webContents.send('companion:state', companionState); return companionState; }
+function createMainWindow() { mainWindow = new BrowserWindow({ width: 1180, height: 760, minWidth: 850, minHeight: 600, show: false, backgroundColor: '#121214', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true } }); mainWindow.loadFile(path.join(appRoot, 'index.html')); mainWindow.once('ready-to-show', () => { mainWindow.show(); mainWindow.focus(); }); mainWindow.webContents.on('did-fail-load', (_event, code, desc) => console.error(`KRITAM failed to load UI: ${code} ${desc}`)); mainWindow.on('close', (event) => { if (!app.isQuitting) { event.preventDefault(); mainWindow.hide(); } }); }
+function createCompanionWindow() { companionWindow = new BrowserWindow({ width: 330, height: 460, minWidth: 330, maxWidth: 330, minHeight: 460, maxHeight: 460, show: false, frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true, resizable: false, webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true } }); companionWindow.setAlwaysOnTop(true, 'floating'); companionWindow.loadFile(path.join(__dirname, 'companion.html')); companionWindow.on('close', (event) => { if (!app.isQuitting) { event.preventDefault(); companionWindow.hide(); } }); companionWindow.once('ready-to-show', () => companionWindow.showInactive()); companionWindow.webContents.on('did-finish-load', () => setCompanionState(companionState.state, companionState.text)); }
 function showCompanion() { companionWindow?.showInactive(); setCompanionState(companionState.state, companionState.text); companionWindow?.webContents.send('daily-briefing-request'); }
-function createTray() {
-  const icon = nativeImage.createFromPath(path.join(appRoot, 'assets', 'kritam-avatar.png')).resize({ width: 32, height: 32 });
-  tray = new Tray(icon); tray.setToolTip('KRITAM — ready when you are');
-  tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Talk to KRITAM', click: () => { mainWindow.show(); mainWindow.focus(); } }, { label: 'Show companion', click: showCompanion }, { type: 'separator' }, { label: 'Quit KRITAM', click: () => { app.isQuitting = true; app.quit(); } }]));
-  tray.on('click', showCompanion);
-}
-app.whenReady().then(() => { createMainWindow(); createCompanionWindow(); createTray(); });
-app.on('window-all-closed', (event) => event.preventDefault());
-app.on('activate', () => mainWindow?.show());
-ipcMain.handle('news:get', fetchHeadlines);
-ipcMain.handle('companion:show', showCompanion);
-ipcMain.handle('companion:set-state', (_event, state, text) => setCompanionState(state, text));
-ipcMain.handle('agent:plan', (_event, text) => planLocalCommand(text));
-ipcMain.handle('task:plan', (_event, text) => planTask(text));
-ipcMain.handle('agent:run-local', async (_event, text) => runLocalCommand(text));
-ipcMain.handle('ollama:status', () => getOllamaStatus());
-ipcMain.handle('ollama:chat', async (_event, messages, options) => { if (!Array.isArray(messages) || messages.length === 0) throw new Error('A conversation is required.'); return ollamaChat(messages, options || {}); });
-
-const screenCapture = createScreenCapture((options) => mainWindow.capturePage(options), path.join(app.getPath('userData'), 'screenshots'));
-const vision = createVisionRuntime({ capture: () => screenCapture.capture(), analyzeImage: (filePath, prompt) => createVisionAnalyzer().analyzeImage(filePath, prompt) });
-
-async function captureDesktopScreen() {
-  if (process.platform !== 'win32') throw new Error('Desktop-wide capture is currently supported on Windows only.');
-  const display = screen.getPrimaryDisplay();
-  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: display.size.width, height: display.size.height } });
-  if (!sources.length || sources[0].thumbnail.isEmpty()) throw new Error('No desktop screen was available for capture.');
-  const image = sources[0].thumbnail;
-  const size = image.getSize();
-  return { image, width: size.width, height: size.height, display };
-}
-
-async function captureDesktopFile() {
-  const desktop = await captureDesktopScreen();
-  const tempDir = path.join(app.getPath('userData'), 'screenshots');
-  fs.mkdirSync(tempDir, { recursive: true });
-  const filePath = path.join(tempDir, `kritam-desktop-${Date.now()}.png`);
-  const png = desktop.image.toPNG();
-  fs.writeFileSync(filePath, png);
-  const fingerprint = crypto.createHash('sha256').update(png).digest('hex');
-  return { ...desktop, filePath, fingerprint };
-}
-
-async function findDesktopTargets(instruction) {
-  const validated = validateToolRequest({ tool: 'screen_targets', arguments: { instruction } });
-  if (validated.policy.approval !== 'always') throw new Error('Screen target detection must require explicit approval.');
-  const desktop = await captureDesktopFile();
-  try {
-    const analysis = await createVisionAnalyzer().analyzeImage(desktop.filePath, buildTargetPrompt(instruction));
-    const targets = parseVisionTargets(analysis.text);
-    return { type: 'screen-targets', width: desktop.width, height: desktop.height, display: desktop.display.bounds, fingerprint: desktop.fingerprint, targets, selection: selectTarget(targets, instruction), model: analysis.model };
-  } finally { try { fs.unlinkSync(desktop.filePath); } catch (_) {} }
-}
-
-function mapTargetToDisplay(target, imageWidth, imageHeight, bounds) {
-  const x = Number(target?.x), y = Number(target?.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y) || imageWidth <= 0 || imageHeight <= 0) throw new Error('Invalid screen target coordinates.');
-  const safeX = Math.max(0, Math.min(imageWidth, x)), safeY = Math.max(0, Math.min(imageHeight, y));
-  return { x: Math.round(bounds.x + (safeX / imageWidth) * bounds.width), y: Math.round(bounds.y + (safeY / imageHeight) * bounds.height) };
-}
-
-async function clickDesktopTarget(target, imageWidth, imageHeight, instruction, expectedFingerprint) {
-  if (!target || target.actionable === false) throw new Error('The selected target is not actionable.');
-  const confidence = Number(target.confidence);
-  if (!Number.isFinite(confidence) || confidence < 0.75) throw new Error('KRITAM will not click a low-confidence screen target.');
-  const display = screen.getPrimaryDisplay();
-  const point = mapTargetToDisplay(target, imageWidth, imageHeight, display.bounds);
-  const request = validateToolRequest({ tool: 'mouse_click', arguments: point });
-  const record = createActionRecord(request);
-  const before = await captureDesktopFile();
-  try {
-    if (expectedFingerprint && before.fingerprint !== expectedFingerprint) throw new Error('The desktop changed since the target was found. Please rescan the screen before clicking.');
-    const result = await computerInput.click(request.arguments);
-    const confirmed = verifyResult(record, result);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const after = await captureDesktopFile();
-    try {
-      const changed = before.fingerprint !== after.fingerprint;
-      let semantic = { success: false, confidence: 0, reason: 'Semantic verification was not available.', evidence: '' };
-      try {
-        const analysis = await createVisionAnalyzer().analyzeImage(after.filePath, buildVerificationPrompt(instruction, target.label));
-        semantic = normalizeVerification(analysis.text);
-      } catch (verificationError) {
-        semantic.reason = `Semantic verification unavailable: ${verificationError.message || 'vision analysis failed.'}`.slice(0, 500);
-      }
-      const verified = semantic.success ? 'semantic-confirmed' : changed ? 'screen-confirmed' : 'screen-unchanged';
-      const note = semantic.success ? semantic.reason : changed ? 'Desktop changed, but semantic verification could not confirm the requested outcome.' : semantic.reason;
-      return { ...confirmed, instruction, target: { ...target, ...point }, verification: applyScreenVerification(confirmed, { changed: verified !== 'screen-unchanged', confidence: semantic.success ? semantic.confidence : changed ? 0.75 : 0, note }), semanticVerification: semantic };
-    } finally { try { fs.unlinkSync(after.filePath); } catch (_) {} }
-  } finally { try { fs.unlinkSync(before.filePath); } catch (_) {} }
-}
-
-ipcMain.handle('tool:execute', async (_event, request) => {
-  const validated = validateToolRequest(request);
-  let result;
-  if (validated.tool === 'capture_screen') result = await screenCapture.capture();
-  else if (validated.tool === 'analyze_screen') result = await vision.analyzeScreen(validated.arguments.prompt);
-  else if (validated.tool === 'screen_targets') result = await findDesktopTargets(validated.arguments.instruction);
-  else if (validated.tool === 'mouse_click') result = await computerInput.click(validated.arguments);
-  else if (validated.tool === 'type_text') result = await computerInput.typeText(validated.arguments);
-  else result = await executeTool(validated);
-  console.log(`[KRITAM TOOL] ${validated.tool}`);
-  return { ...result, tool: validated.tool };
-});
-ipcMain.handle('screen:targets', async (_event, instruction) => findDesktopTargets(instruction));
-ipcMain.handle('screen:select-target', async (_event, targets, instruction) => selectTarget(targets, instruction));
-ipcMain.handle('screen:click-target', async (_event, target, imageWidth, imageHeight, instruction, expectedFingerprint) => clickDesktopTarget(target, imageWidth, imageHeight, instruction, expectedFingerprint));
-ipcMain.handle('app:open-url', async (_event, url) => executeTool({ tool: 'open_url', arguments: { url } }));
-ipcMain.handle('login:set-enabled', (_event, enabled) => { app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath }); return app.getLoginItemSettings().openAtLogin; });
-ipcMain.handle('memory:get-recent', (_event, conversationId = 'default', limit = 50) => memory.getRecentMessages(conversationId, limit));
-ipcMain.handle('memory:add-message', (_event, payload) => memory.addMessage(payload));
-ipcMain.handle('memory:get-preferences', () => memory.getPreferences());
-ipcMain.handle('memory:set-preference', (_event, key, value) => memory.setPreference(key, value));
-ipcMain.handle('memory:clear', () => memory.clearAll());
-ipcMain.handle('screen:capture', async () => screenCapture.capture());
-ipcMain.handle('screen:analyze', async (_event, prompt) => vision.analyzeScreen(prompt));
+function createTray() { const icon = nativeImage.createFromPath(path.join(appRoot, 'assets', 'kritam-avatar.png')).resize({ width: 32, height: 32 }); tray = new Tray(icon); tray.setToolTip('KRITAM — ready when you are'); tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Talk to KRITAM', click: () => { mainWindow.show(); mainWindow.focus(); } }, { label: 'Show companion', click: showCompanion }, { type: 'separator' }, { label: 'Quit KRITAM', click: () => { app.isQuitting = true; app.quit(); } }])); tray.on('click', showCompanion); }
+app.whenReady().then(() => { createMainWindow(); createCompanionWindow(); createTray(); }); app.on('window-all-closed', (event) => event.preventDefault()); app.on('activate', () => mainWindow?.show());
+ipcMain.handle('news:get', fetchHeadlines); ipcMain.handle('companion:show', showCompanion); ipcMain.handle('companion:set-state', (_event, state, text) => setCompanionState(state, text)); ipcMain.handle('agent:plan', (_event, text) => planLocalCommand(text)); ipcMain.handle('task:plan', (_event, text) => planTask(text)); ipcMain.handle('agent:run-local', async (_event, text) => runLocalCommand(text)); ipcMain.handle('ollama:status', () => getOllamaStatus()); ipcMain.handle('ollama:chat', async (_event, messages, options) => { if (!Array.isArray(messages) || !messages.length) throw new Error('A conversation is required.'); return ollamaChat(messages, options || {}); });
+const screenCapture = createScreenCapture((options) => mainWindow.capturePage(options), path.join(app.getPath('userData'), 'screenshots')); const vision = createVisionRuntime({ capture: () => screenCapture.capture(), analyzeImage: (filePath, prompt) => createVisionAnalyzer().analyzeImage(filePath, prompt) });
+async function captureDesktopScreen() { if (process.platform !== 'win32') throw new Error('Desktop-wide capture is currently supported on Windows only.'); const display = screen.getPrimaryDisplay(); const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: display.size.width, height: display.size.height } }); if (!sources.length || sources[0].thumbnail.isEmpty()) throw new Error('No desktop screen was available for capture.'); const image = sources[0].thumbnail, size = image.getSize(); return { image, width: size.width, height: size.height, display }; }
+async function captureDesktopFile() { const desktop = await captureDesktopScreen(); const tempDir = path.join(app.getPath('userData'), 'screenshots'); fs.mkdirSync(tempDir, { recursive: true }); const filePath = path.join(tempDir, `kritam-desktop-${Date.now()}.png`); const png = desktop.image.toPNG(); fs.writeFileSync(filePath, png); const fingerprint = crypto.createHash('sha256').update(png).digest('hex'); return { ...desktop, filePath, fingerprint }; }
+async function findDesktopTargets(instruction) { const validated = validateToolRequest({ tool: 'screen_targets', arguments: { instruction } }); if (validated.policy.approval !== 'always') throw new Error('Screen target detection must require explicit approval.'); const desktop = await captureDesktopFile(); try { const analysis = await createVisionAnalyzer().analyzeImage(desktop.filePath, buildTargetPrompt(instruction)); const targets = parseVisionTargets(analysis.text); return { type: 'screen-targets', width: desktop.width, height: desktop.height, display: desktop.display.bounds, fingerprint: desktop.fingerprint, targets, selection: selectTarget(targets, instruction), model: analysis.model }; } finally { try { fs.unlinkSync(desktop.filePath); } catch (_) {} } }
+function mapTargetToDisplay(target, imageWidth, imageHeight, bounds) { const x = Number(target?.x), y = Number(target?.y); if (!Number.isFinite(x) || !Number.isFinite(y) || imageWidth <= 0 || imageHeight <= 0) throw new Error('Invalid screen target coordinates.'); return { x: Math.round(bounds.x + (Math.max(0, Math.min(imageWidth, x)) / imageWidth) * bounds.width), y: Math.round(bounds.y + (Math.max(0, Math.min(imageHeight, y)) / imageHeight) * bounds.height) }; }
+async function clickDesktopTarget(target, imageWidth, imageHeight, instruction, expectedFingerprint) { if (!target || target.actionable === false) throw new Error('The selected target is not actionable.'); if (!Number.isFinite(Number(target.confidence)) || Number(target.confidence) < 0.75) throw new Error('KRITAM will not click a low-confidence screen target.'); const point = mapTargetToDisplay(target, imageWidth, imageHeight, screen.getPrimaryDisplay().bounds); const request = validateToolRequest({ tool: 'mouse_click', arguments: point }); const record = createActionRecord(request); const before = await captureDesktopFile(); try { if (expectedFingerprint && before.fingerprint !== expectedFingerprint) throw new Error('The desktop changed since the target was found. Please rescan the screen before clicking.'); const result = await computerInput.click(request.arguments); const confirmed = verifyResult(record, result); await new Promise((resolve) => setTimeout(resolve, 500)); const after = await captureDesktopFile(); try { const changed = before.fingerprint !== after.fingerprint; let semantic = { success: false, confidence: 0, reason: 'Semantic verification was not available.', evidence: '' }; try { const analysis = await createVisionAnalyzer().analyzeImage(after.filePath, buildVerificationPrompt(instruction, target.label)); semantic = normalizeVerification(analysis.text); } catch (error) { semantic.reason = `Semantic verification unavailable: ${error.message || 'vision analysis failed.'}`.slice(0, 500); } const verified = semantic.success ? 'semantic-confirmed' : changed ? 'screen-confirmed' : 'screen-unchanged'; return { ...confirmed, instruction, target: { ...target, ...point }, verification: applyScreenVerification(confirmed, { changed: verified !== 'screen-unchanged', confidence: semantic.success ? semantic.confidence : changed ? 0.75 : 0, note: semantic.success ? semantic.reason : changed ? 'Desktop changed, but semantic verification could not confirm the requested outcome.' : semantic.reason }), semanticVerification: semantic }; } finally { try { fs.unlinkSync(after.filePath); } catch (_) {} } } finally { try { fs.unlinkSync(before.filePath); } catch (_) {} } }
+ipcMain.handle('tool:execute', async (_event, request) => { const validated = validateToolRequest(request); let result; if (validated.tool === 'capture_screen') result = await screenCapture.capture(); else if (validated.tool === 'analyze_screen') result = await vision.analyzeScreen(validated.arguments.prompt); else if (validated.tool === 'screen_targets') result = await findDesktopTargets(validated.arguments.instruction); else if (validated.tool === 'mouse_click') result = await computerInput.click(validated.arguments); else if (validated.tool === 'type_text') result = await computerInput.typeText(validated.arguments); else if (validated.tool === 'keyboard_shortcut') result = await keyboard.pressShortcut(validated.arguments); else result = await executeTool(validated); console.log(`[KRITAM TOOL] ${validated.tool}`); return { ...result, tool: validated.tool }; });
+ipcMain.handle('keyboard:shortcut', async (_event, keys) => { const request = validateToolRequest({ tool: 'keyboard_shortcut', arguments: { keys } }); return keyboard.pressShortcut(request.arguments); });
+ipcMain.handle('screen:targets', async (_event, instruction) => findDesktopTargets(instruction)); ipcMain.handle('screen:select-target', async (_event, targets, instruction) => selectTarget(targets, instruction)); ipcMain.handle('screen:click-target', async (_event, target, imageWidth, imageHeight, instruction, expectedFingerprint) => clickDesktopTarget(target, imageWidth, imageHeight, instruction, expectedFingerprint)); ipcMain.handle('app:open-url', async (_event, url) => executeTool({ tool: 'open_url', arguments: { url } })); ipcMain.handle('login:set-enabled', (_event, enabled) => { app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath }); return app.getLoginItemSettings().openAtLogin; }); ipcMain.handle('memory:get-recent', (_event, id = 'default', limit = 50) => memory.getRecentMessages(id, limit)); ipcMain.handle('memory:add-message', (_event, payload) => memory.addMessage(payload)); ipcMain.handle('memory:get-preferences', () => memory.getPreferences()); ipcMain.handle('memory:set-preference', (_event, key, value) => memory.setPreference(key, value)); ipcMain.handle('memory:clear', () => memory.clearAll()); ipcMain.handle('screen:capture', async () => screenCapture.capture()); ipcMain.handle('screen:analyze', async (_event, prompt) => vision.analyzeScreen(prompt));
