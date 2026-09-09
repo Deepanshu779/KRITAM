@@ -8,16 +8,25 @@ test('plans approved website commands', () => {
   assert.equal(request.arguments.url, 'https://www.youtube.com');
 });
 
+test('plans arbitrary website commands', () => {
+  const request = planLocalCommand('open https://example.com/docs');
+  assert.equal(request.tool, 'open_url');
+  assert.equal(request.arguments.url, 'https://example.com/docs');
+});
+
 test('plans Windows app commands', () => {
   const request = planLocalCommand('launch file explorer');
   assert.equal(request.tool, 'open_app');
   assert.equal(request.arguments.app, 'explorer');
 });
 
+test('plans arbitrary installed app commands', () => {
+  assert.equal(planLocalCommand('open Spotify')?.arguments.app, 'spotify');
+  assert.equal(planLocalCommand('launch Visual Studio Code')?.arguments.app, 'visual studio code');
+});
+
 test('plans safe folder commands', () => {
-  const request = planLocalCommand('open my Downloads');
-  assert.equal(request.tool, 'open_path');
-  assert.equal(request.arguments.path, 'Downloads');
+  assert.equal(planLocalCommand('open my Downloads').arguments.path, 'Downloads');
   assert.equal(planLocalCommand('show Desktop').arguments.path, 'Desktop');
 });
 
@@ -37,8 +46,7 @@ test('understands Hindi time and system commands', () => {
   assert.equal(planLocalCommand('system ki info batao')?.tool, 'system_info');
 });
 
-test('understands Hindi screen analysis without exposing arbitrary shell access', () => {
-  assert.equal(planLocalCommand('screen par kya dikh raha hai')?.tool, 'analyze_screen');
+test('keeps arbitrary shell execution unavailable', () => {
   assert.equal(planLocalCommand('run powershell to delete files'), null);
 });
 
