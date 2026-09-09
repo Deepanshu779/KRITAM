@@ -6,6 +6,7 @@ const { planLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent')
 const { runLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent-runtime'));
 const { validateToolRequest } = require(path.join(__dirname, '..', 'core', 'policy'));
 const { executeTool } = require(path.join(__dirname, '..', 'core', 'tools'));
+const { createMemoryStore } = require(path.join(__dirname, '..', 'core', 'memory'));
 
 let mainWindow, companionWindow, tray;
 let companionState = { state: 'idle', text: 'KRITAM IS READY' };
@@ -13,6 +14,7 @@ const appRoot = path.join(__dirname, '..');
 const dataRoot = path.join(appRoot, '.kritam-data');
 app.setPath('userData', dataRoot);
 app.setPath('sessionData', path.join(dataRoot, 'session'));
+const memory = createMemoryStore(path.join(app.getPath('userData'), 'memory.json'));
 
 function fetchHeadlines() {
   return new Promise((resolve) => {
@@ -67,3 +69,8 @@ ipcMain.handle('ollama:chat', async (_event, messages, options) => { if (!Array.
 ipcMain.handle('tool:execute', async (_event, request) => { const validated = validateToolRequest(request); const result = await executeTool(validated); console.log(`[KRITAM TOOL] ${validated.tool}`, validated.arguments); return { ...result, tool: validated.tool }; });
 ipcMain.handle('app:open-url', async (_event, url) => executeTool({ tool: 'open_url', arguments: { url } }));
 ipcMain.handle('login:set-enabled', (_event, enabled) => { app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath }); return app.getLoginItemSettings().openAtLogin; });
+ipcMain.handle('memory:get-recent', (_event, conversationId = 'default', limit = 50) => memory.getRecentMessages(conversationId, limit));
+ipcMain.handle('memory:add-message', (_event, payload) => memory.addMessage(payload));
+ipcMain.handle('memory:get-preferences', () => memory.getPreferences());
+ipcMain.handle('memory:set-preference', (_event, key, value) => memory.setPreference(key, value));
+ipcMain.handle('memory:clear', () => memory.clearAll());
