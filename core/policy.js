@@ -1,8 +1,8 @@
 const RISK_LEVELS = Object.freeze({ LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 });
 
 const TOOL_POLICIES = Object.freeze({
-  open_url: { risk: RISK_LEVELS.LOW, approval: 'session' },
-  open_app: { risk: RISK_LEVELS.MEDIUM, approval: 'session' },
+  open_url: { risk: RISK_LEVELS.LOW, approval: 'none' },
+  open_app: { risk: RISK_LEVELS.LOW, approval: 'none' },
   open_path: { risk: RISK_LEVELS.MEDIUM, approval: 'session' },
   system_info: { risk: RISK_LEVELS.LOW, approval: 'none' },
   get_time: { risk: RISK_LEVELS.LOW, approval: 'none' },
