@@ -4,19 +4,8 @@
 
   function input() { return document.querySelector('#messageInput'); }
   function scrollMessages() { const box = document.querySelector('#messages')?.parentElement; if (box) box.scrollTop = box.scrollHeight; }
-  function addAssistant(text) {
-    if (typeof addMessage === 'function') addMessage(text);
-    else {
-      const messages = document.querySelector('#messages');
-      if (!messages) return;
-      messages.classList.remove('hidden');
-      const item = document.createElement('article');
-      item.className = 'message assistant';
-      const icon = document.createElement('div'); icon.className = 'message-icon'; icon.textContent = 'K';
-      const bubble = document.createElement('div'); bubble.className = 'bubble'; bubble.textContent = text;
-      item.append(icon, bubble); messages.append(item); scrollMessages();
-    }
-  }
+  function addAssistant(text) { if (typeof addMessage === 'function') addMessage(text); }
+  function addUser(text) { if (typeof addMessage === 'function') addMessage(text, 'user'); }
   function say(text) { if (typeof speak === 'function') speak(text); }
   function openPlatform(platform) {
     if (!platform?.url) return;
@@ -45,24 +34,12 @@
     if (!window.kritamDesktop?.executeNaturalCommand) return false;
     const result = await window.kritamDesktop.executeNaturalCommand(text);
     if (!result?.matched || !result.executed) return false;
-    if (result.action === 'find_and_open_content') {
-      const label = result.beneficiary ? ` for ${result.beneficiary}` : '';
-      const message = `Bilkul ji${label}. ${result.url ? 'I’m opening some options now.' : 'I’ll find something for you.'}`;
-      addAssistant(message); say(message);
-      return true;
-    }
+    if (result.action === 'find_and_open_content') return true;
     if (result.action === 'search_web' && result.platforms?.length) {
-      addAssistant(`Bilkul ji. I found options across ${result.platforms.length} platforms.`);
-      say('Bilkul ji. I found options across multiple platforms.');
       renderSearchOptions({ platforms: result.platforms, searchQuery: result.query || result.category || 'your search' });
       return true;
     }
-    if (result.action === 'open_target') {
-      const message = 'Done ji. I’m opening it now.';
-      addAssistant(message); say(message);
-      return true;
-    }
-    return false;
+    return result.action === 'open_target';
   }
   async function handleConversation(text) {
     if (handling) return false;
@@ -70,6 +47,7 @@
     try {
       const result = await window.kritamDesktop?.planConversation?.(text, conversationState);
       if (result?.matched) {
+        addUser(text);
         conversationState = result.state || conversationState;
         addAssistant(result.response);
         say(result.response);
@@ -77,7 +55,12 @@
         if (!result.needsDetails && result.intent === 'content') await executeNatural(text);
         return true;
       }
-      return await executeNatural(text);
+      const executed = await executeNatural(text);
+      if (executed) {
+        addUser(text);
+        return true;
+      }
+      return false;
     } catch (error) {
       console.warn('Conversation planner failed:', error);
       return false;
