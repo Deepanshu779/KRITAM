@@ -1,5 +1,5 @@
-const os = require('os');
 const { execFile } = require('child_process');
+const { findInstalledApp } = require('./app-discovery');
 
 function normalizeAppName(name) {
   const value = String(name || '').trim().replace(/\s+/g, ' ');
@@ -20,7 +20,6 @@ async function launchInstalledApp(name) {
   const requested = normalizeAppName(name);
   if (process.platform !== 'win32') throw new Error('Opening arbitrary installed applications is currently supported on Windows only.');
 
-  // First prefer commands exposed on PATH. No shell is used.
   try {
     const located = await exec('where.exe', [requested]);
     const executable = located.stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
@@ -30,20 +29,27 @@ async function launchInstalledApp(name) {
     }
   } catch (_) {}
 
-  // Then query Windows Start-menu registrations. The query is passed through
-  // an environment variable, so user input is never interpolated into code.
   const script = "$q=$env:KRITAM_APP_QUERY; $apps=Get-StartApps | Where-Object { $_.Name -like ('*' + $q + '*') } | Select-Object -First 1; if($apps){$apps.AppID}else{exit 2}";
   try {
     const result = await exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], {
       env: { ...process.env, KRITAM_APP_QUERY: requested },
     });
     const appId = result.stdout.trim();
-    if (!appId) throw new Error('not found');
-    await exec('explorer.exe', [`shell:AppsFolder\\${appId}`]);
-    return { success: true, app: requested, source: 'Start menu', appId };
-  } catch (_) {
-    throw new Error(`I couldn't find '${requested}' on this PC. Please check the app name or install it first.`);
-  }
+    if (appId) {
+      await exec('explorer.exe', [`shell:AppsFolder\\${appId}`]);
+      return { success: true, app: requested, source: 'Start menu', appId };
+    }
+  } catch (_) {}
+
+  try {
+    const discovered = await findInstalledApp(requested);
+    if (discovered?.path) {
+      await exec('explorer.exe', [discovered.path]);
+      return { success: true, app: discovered.name, source: 'Start menu file', resolved: discovered.path };
+    }
+  } catch (_) {}
+
+  throw new Error(`I couldn't find '${requested}' on this PC. Please check the app name or install it first.`);
 }
 
 module.exports = { normalizeAppName, launchInstalledApp };
