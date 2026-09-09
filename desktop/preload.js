@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('kritamDesktop', {
   runLocalAgent: (text) => ipcRenderer.invoke('agent:run-local', text),
   executeTool: (request) => ipcRenderer.invoke('tool:execute', request),
   pressShortcut: (keys) => ipcRenderer.invoke('keyboard:shortcut', keys),
+  listenNativeSpeech: (language = 'en') => ipcRenderer.invoke('voice:native-listen', language),
   setLaunchAtLogin: (enabled) => ipcRenderer.invoke('login:set-enabled', enabled),
   showCompanion: () => ipcRenderer.invoke('companion:show'),
   setCompanionState: (state, text) => ipcRenderer.invoke('companion:set-state', state, text),
