@@ -14,7 +14,7 @@ function validatePoint(x, y) {
     throw new Error('Mouse coordinates must be integers.');
   }
   if (point.x < LIMITS.minX || point.x > LIMITS.maxX || point.y < LIMITS.minY || point.y > LIMITS.maxY) {
-    throw new Error('Mouse coordinates are outside KRITAM\'s safe bounds.');
+    throw new Error("Mouse coordinates are outside KRITAM's safe bounds.");
   }
   return point;
 }
@@ -25,6 +25,10 @@ function validateText(text) {
   if (value.length > LIMITS.maxTextLength) throw new Error('Text is too long for a single controlled input action.');
   if (/\0/.test(value)) throw new Error('Invalid text input.');
   return value;
+}
+
+function escapeSendKeys(text) {
+  return String(text).replace(/[+^%~(){}]/g, (character) => `{${character}}`);
 }
 
 function runPowerShell(script) {
@@ -50,10 +54,11 @@ async function click({ x, y, button = 'left' }) {
 async function typeText({ text }) {
   if (process.platform !== 'win32') throw new Error('Controlled keyboard input is currently supported on Windows only.');
   const value = validateText(text);
-  const encoded = Buffer.from(value, 'utf8').toString('base64');
-  const script = `$value=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')); Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait($value.Replace('{','{{}').Replace('}','{}}'))`;
+  const escaped = escapeSendKeys(value);
+  const encoded = Buffer.from(escaped, 'utf8').toString('base64');
+  const script = `$value=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')); Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait($value)`;
   await runPowerShell(script);
   return { success: true, action: 'type_text', length: value.length };
 }
 
-module.exports = { LIMITS, validatePoint, validateText, click, typeText };
+module.exports = { LIMITS, validatePoint, validateText, escapeSendKeys, click, typeText };
