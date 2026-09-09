@@ -7,6 +7,8 @@ const { getStatus: getOllamaStatus, chat: ollamaChat } = require(path.join(__dir
 const { planLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent'));
 const { planTask } = require(path.join(__dirname, '..', 'core', 'task-planner'));
 const { planConversationalMessage } = require(path.join(__dirname, '..', 'core', 'conversation-agent'));
+const { planNaturalCommand } = require(path.join(__dirname, '..', 'core', 'natural-intent'));
+const { executeNaturalCommand } = require(path.join(__dirname, '..', 'core', 'natural-command-runtime'));
 const { runLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent-runtime'));
 const { validateToolRequest } = require(path.join(__dirname, '..', 'core', 'policy'));
 const { executeTool } = require(path.join(__dirname, '..', 'core', 'tools'));
@@ -115,6 +117,15 @@ ipcMain.handle('conversation:plan', (_event, text) => {
   return result;
 });
 ipcMain.handle('conversation:clear', () => { conversationState = null; return true; });
+ipcMain.handle('natural:plan', (_event, text) => planNaturalCommand(text));
+ipcMain.handle('natural:execute', async (_event, text) => {
+  const result = await executeNaturalCommand(text);
+  if (result?.matched) {
+    audit.record('natural.executed', { intent: result.intent, action: result.action, beneficiary: result.beneficiary || null });
+    if (result.executed) taskHistory.record({ action: text, tool: 'natural-command', status: 'completed', detail: `Natural command executed as ${result.action}.` });
+  }
+  return result;
+});
 ipcMain.handle('agent:run-local', async (_event, text) => {
   try {
     const result = await runLocalCommand(text);
