@@ -1,6 +1,6 @@
 {
   "name": "kritam",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A privacy-first personal desktop AI companion.",
   "main": "desktop/main.js",
@@ -11,6 +11,9 @@
     "dev": "electron .",
     "test": "node --test",
     "dist:win": "electron-builder --win nsis --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^37.2.6",
@@ -42,6 +45,13 @@
         }
       ],
       "artifactName": "KRITAM-Setup-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Deepanshu779",
+      "repo": "KRITAM",
+      "releaseType": "release",
+      "publishAutoUpdate": true
     },
     "nsis": {
       "oneClick": false,
