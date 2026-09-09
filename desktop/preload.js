@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('kritamDesktop', {
   getNews: () => ipcRenderer.invoke('news:get'),
   openUrl: (url) => ipcRenderer.invoke('app:open-url', url),
   planAgent: (text) => ipcRenderer.invoke('agent:plan', text),
+  runLocalAgent: (text) => ipcRenderer.invoke('agent:run-local', text),
   executeTool: (request) => ipcRenderer.invoke('tool:execute', request),
   setLaunchAtLogin: (enabled) => ipcRenderer.invoke('login:set-enabled', enabled),
   showCompanion: () => ipcRenderer.invoke('companion:show'),
