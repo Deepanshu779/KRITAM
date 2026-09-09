@@ -26,6 +26,10 @@ function planLocalCommand(text) {
   const q = String(text || '').trim().toLowerCase();
   if (!q) return null;
 
+  if (/\b(analyze|analyse|describe|what(?:'s| is))\b.*\b(screen|display)\b/.test(q) || /\bwhat(?:'s| is) on my screen\b/.test(q)) {
+    return makeTool('analyze_screen', {}, 'Analyze the current KRITAM screen locally with a vision-capable Ollama model.', 'Analyze my screen');
+  }
+
   const website = Object.keys(WEBSITE_ALIASES).find((name) => new RegExp(`\\b(?:open|go to|visit)\\s+(?:the\\s+)?${name}\\b`, 'i').test(q));
   if (website) return makeTool('open_url', { url: WEBSITE_ALIASES[website] }, `Open ${website} in your default browser.`, `Open ${website}`);
 
