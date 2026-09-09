@@ -8,6 +8,8 @@ const TOOL_POLICIES = Object.freeze({
   get_time: { risk: RISK_LEVELS.LOW, approval: 'none' },
   capture_screen: { risk: RISK_LEVELS.HIGH, approval: 'always' },
   analyze_screen: { risk: RISK_LEVELS.HIGH, approval: 'always' },
+  mouse_click: { risk: RISK_LEVELS.HIGH, approval: 'always' },
+  type_text: { risk: RISK_LEVELS.HIGH, approval: 'always' },
 });
 
 function getPolicy(tool) {
