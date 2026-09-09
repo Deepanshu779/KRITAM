@@ -70,10 +70,36 @@ function actionCard(label, detail, action) {
   el.querySelector('button').onclick=()=>askPermission(action);messages.append(el);messages.parentElement.scrollTop=messages.parentElement.scrollHeight;
 }
 function askPermission(action){pendingAction=action;$('#dialogTitle').textContent='Approve this action?';$('#dialogText').textContent=action.description;$('#dialogDetail').textContent=action.kind||'Desktop action';$('#dialogAction').textContent=action.label;dialog.showModal();}
+function actionFromStep(step, index, total) {
+  const risk = step.tool === 'type_text' || step.tool === 'mouse_click' || step.tool === 'capture_screen' || step.tool === 'analyze_screen' ? 'High risk' : step.tool === 'open_app' || step.tool === 'open_path' ? 'Medium risk' : 'Low risk';
+  return { kind:`Task step ${index + 1} of ${total} · ${risk}`, label:step.label||step.tool, description:`KRITAM will perform step ${index + 1} of ${total}: ${step.description||step.tool}. Only this step will run after approval.`, toolRequest:{tool:step.tool,arguments:step.arguments} };
+}
+async function runTaskPlan(plan) {
+  for(let index=0; index<plan.steps.length; index++) {
+    const step=plan.steps[index];
+    const action=actionFromStep(step,index,plan.steps.length);
+    action.taskPlan=plan; action.taskIndex=index;
+    if(['open_app','open_path','open_url','type_text','mouse_click','capture_screen','analyze_screen'].includes(step.tool)) {
+      actionCard(action.label,action.description,action); return;
+    }
+    try { await window.kritamDesktop.executeTool(action.toolRequest); } catch(error) { toast(error.message||'Task step failed.'); return; }
+  }
+}
 async function runAction(){
   if(!pendingAction)return; const a=pendingAction; dialog.close(); pendingAction=null;
   try {
-    if(a.toolRequest){ const result=await window.kritamDesktop.executeTool(a.toolRequest); const message=a.successMessage||`Done — ${a.label.replace(/^Open /,'')} completed.`; addMessage(message); speak(message); return; }
+    if(a.toolRequest){
+      const result=await window.kritamDesktop.executeTool(a.toolRequest);
+      if(a.taskPlan){
+        const nextIndex=a.taskIndex+1;
+        if(nextIndex<a.taskPlan.steps.length){
+          const next=actionFromStep(a.taskPlan.steps[nextIndex],nextIndex,a.taskPlan.steps.length); next.taskPlan=a.taskPlan; next.taskIndex=nextIndex;
+          actionCard(next.label,next.description,next); toast(`Step ${nextIndex} ready for approval.`); return;
+        }
+        const message=`Done — all ${a.taskPlan.steps.length} task steps completed.`; addMessage(message); speak(message); return;
+      }
+      const message=a.successMessage||`Done — ${a.label.replace(/^Open /,'')} completed.`; addMessage(message); speak(message); return;
+    }
     if(a.url){await window.kritamDesktop.openUrl(a.url);addMessage(`Done — ${a.label.replace(/^Open /,'')} is opening.`);speak(`Done — ${a.label.replace(/^Open /,'')} is opening.`);return;}
     if(a.camera){requestCamera();addMessage('Done — camera permission request has been sent.');}
   } catch(error){toast(error.message||'KRITAM blocked that action.');setState('idle','KRITAM is ready');}
@@ -81,19 +107,22 @@ async function runAction(){
 function requestCamera(){navigator.mediaDevices?.getUserMedia({video:true}).then(stream=>{stream.getTracks().forEach(t=>t.stop());toast('Camera permission was granted, then released.');}).catch(()=>toast('Camera access was not available.'));}
 
 async function tryDesktopCommand(text){
+  if(window.kritamDesktop?.planTask){
+    try { const plan=await window.kritamDesktop.planTask(text); if(plan?.type==='task-plan'){ addMessage(`I prepared a ${plan.steps.length}-step plan. I’ll ask for approval before each controlled action.`); runTaskPlan(plan); return true; } } catch(error){ console.error('Task planner error:',error); }
+  }
   if(window.kritamDesktop?.runLocalAgent){
     try {
       const result=await window.kritamDesktop.runLocalAgent(text);
       if(result?.matched){
         if(result.executed){
-          const data=result.result||{};
-          let message='Done.';
+          const data=result.result||{}; let message='Done.';
           if(result.request.tool==='get_time') message=`It’s ${data.local || 'the current local time'}.`;
           else if(result.request.tool==='system_info') message=`Your PC is running ${data.platform||'the current system'} on ${data.arch||'its current architecture'}, with ${data.memoryGB ?? '?'} GB RAM. CPU: ${data.cpu||'unknown'}.`;
+          else if(result.request.tool==='app_state') message=`${data.app||'That app'} is ${data.running?'running':'not running'}.`;
           addMessage(message); speak(message); return true;
         }
         const request=result.request;
-        actionCard(request.label||'Desktop action',request.description||'KRITAM wants to perform a desktop action.',{kind:`Desktop tool · ${request.policy.risk === 1 ? 'Medium risk' : 'Low risk'}`,label:request.label||request.tool,description:request.description||'KRITAM wants to perform this desktop action.',toolRequest:{tool:request.tool,arguments:request.arguments},successMessage:`Done — ${request.label||request.tool} completed.`});
+        actionCard(request.label||'Desktop action',request.description||'KRITAM wants to perform a desktop action.',{kind:`Desktop tool · ${request.policy.risk === 2 ? 'High risk' : request.policy.risk === 1 ? 'Medium risk' : 'Low risk'}`,label:request.label||request.tool,description:request.description||'KRITAM wants to perform this desktop action.',toolRequest:{tool:request.tool,arguments:request.arguments},successMessage:`Done — ${request.label||request.tool} completed.`});
         return true;
       }
     } catch(error){ console.error('Local agent error:',error); }
@@ -120,19 +149,8 @@ $('#startupToggle').onchange=(event)=>{if(!window.kritamDesktop){event.target.ch
 $('#showCompanion').onclick=()=>window.kritamDesktop?window.kritamDesktop.showCompanion():toast('Open KRITAM as a desktop app to use the companion.');
 function startVoice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Voice recognition is not available.');return;}if(listening){recognition.stop();return;}recognition=new SR();recognition.lang='en-IN';recognition.interimResults=true;recognition.continuous=false;recognition.onstart=()=>{listening=true;$('#micButton').classList.add('listening');setState('listening','Listening…');};recognition.onresult=e=>{const transcript=[...e.results].map(r=>r[0].transcript).join('');input.value=transcript;send.disabled=!transcript.trim();if(e.results[e.results.length-1].isFinal)submit(transcript);};recognition.onerror=()=>{setState('idle','KRITAM is ready');toast('I’m having trouble accessing the microphone.');};recognition.onend=()=>{listening=false;$('#micButton').classList.remove('listening');if(!speechSynthesis?.speaking)setState('idle','KRITAM is ready');};recognition.start();}
 $('#micButton').onclick=startVoice;
-
-// Prototype wake-word listener. This uses Chromium SpeechRecognition, not a native offline wake-word model yet.
-// It is enabled by default while KRITAM is open, but can be stopped explicitly by the user.
 function stopWakeWord(){wakeEnabled=false;wakeListening=false;try{wakeRecognition?.stop();}catch(_){}wakeRecognition=null;}
-function startWakeWord(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR||wakeListening||!wakeEnabled)return false;
-  const wake=new SR(); wakeRecognition=wake; wake.lang='en-IN'; wake.continuous=true; wake.interimResults=false;
-  wake.onresult=e=>{for(const result of e.results){const phrase=result[0].transcript.trim();if(/\bhey\s+kri?tam\b/i.test(phrase)){setState('listening','Yes? I’m listening');speak('Yes? I’m listening.');startVoice();break;}}};
-  wake.onerror=()=>{wakeListening=false;wakeRecognition=null;if(wakeEnabled)setTimeout(startWakeWord,5000);};
-  wake.onend=()=>{wakeListening=false;wakeRecognition=null;if(wakeEnabled)setTimeout(startWakeWord,1200);};
-  try{wake.start();wakeListening=true;return true;}catch(_){wakeRecognition=null;return false;}
-}
+function startWakeWord(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR||wakeListening||!wakeEnabled)return false;const wake=new SR();wakeRecognition=wake;wake.lang='en-IN';wake.continuous=true;wake.interimResults=false;wake.onresult=e=>{for(const result of e.results){const phrase=result[0].transcript.trim();if(/\bhey\s+kri?tam\b/i.test(phrase)){setState('listening','Yes? I’m listening');speak('Yes? I’m listening.');startVoice();break;}}};wake.onerror=()=>{wakeListening=false;wakeRecognition=null;if(wakeEnabled)setTimeout(startWakeWord,5000);};wake.onend=()=>{wakeListening=false;wakeRecognition=null;if(wakeEnabled)setTimeout(startWakeWord,1200);};try{wake.start();wakeListening=true;return true;}catch(_){wakeRecognition=null;return false;}}
 $('#stopListening').onclick=()=>{recognition?.stop();stopWakeWord();toast('Wake listening is off.');};
 window.addEventListener('online',()=>$('#networkTag').textContent='ONLINE');window.addEventListener('offline',()=>{$('#networkTag').textContent='OFFLINE';respond('I’m offline right now, but I can still help with local tasks.');});
 window.addEventListener('DOMContentLoaded',()=>{loadVoices();refreshLocalAI();restoreMemory();setTimeout(startWakeWord,1800);});
