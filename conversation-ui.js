@@ -41,17 +41,43 @@
     all.onclick = () => result.platforms.forEach((platform, index) => setTimeout(() => openPlatform(platform), index * 180));
     list.append(all); card.append(list); messages.append(card); scrollMessages();
   }
+  async function executeNatural(text) {
+    if (!window.kritamDesktop?.executeNaturalCommand) return false;
+    const result = await window.kritamDesktop.executeNaturalCommand(text);
+    if (!result?.matched || !result.executed) return false;
+    if (result.action === 'find_and_open_content') {
+      const label = result.beneficiary ? ` for ${result.beneficiary}` : '';
+      const message = `Bilkul ji${label}. ${result.url ? 'I’m opening some options now.' : 'I’ll find something for you.'}`;
+      addAssistant(message); say(message);
+      return true;
+    }
+    if (result.action === 'search_web' && result.platforms?.length) {
+      addAssistant(`Bilkul ji. I found options across ${result.platforms.length} platforms.`);
+      say('Bilkul ji. I found options across multiple platforms.');
+      renderSearchOptions({ platforms: result.platforms, searchQuery: result.query || result.category || 'your search' });
+      return true;
+    }
+    if (result.action === 'open_target') {
+      const message = 'Done ji. I’m opening it now.';
+      addAssistant(message); say(message);
+      return true;
+    }
+    return false;
+  }
   async function handleConversation(text) {
-    if (handling || !window.kritamDesktop?.planConversation) return false;
+    if (handling) return false;
     handling = true;
     try {
-      const result = await window.kritamDesktop.planConversation(text, conversationState);
-      if (!result?.matched) return false;
-      conversationState = result.state || conversationState;
-      addAssistant(result.response);
-      say(result.response);
-      if (!result.needsDetails && result.platforms?.length) renderSearchOptions(result);
-      return true;
+      const result = await window.kritamDesktop?.planConversation?.(text, conversationState);
+      if (result?.matched) {
+        conversationState = result.state || conversationState;
+        addAssistant(result.response);
+        say(result.response);
+        if (!result.needsDetails && result.platforms?.length) renderSearchOptions(result);
+        if (!result.needsDetails && result.intent === 'content') await executeNatural(text);
+        return true;
+      }
+      return await executeNatural(text);
     } catch (error) {
       console.warn('Conversation planner failed:', error);
       return false;
