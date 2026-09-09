@@ -6,6 +6,7 @@
   const INTERRUPT_WORDS = ['stop', 'wait', 'hold on', 'bas', 'ruko', 'ruk ja', 'रुको', 'बस', 'चुप', 'ठहरो'];
   let voices = [];
   let speaking = false;
+  let nativeListening = false;
 
   function refreshVoices() {
     if ('speechSynthesis' in window) voices = speechSynthesis.getVoices();
@@ -45,6 +46,51 @@
       if (status) status.textContent = 'KRITAM is listening';
     }
     return wasSpeaking;
+  }
+
+  function detectLanguage(text) {
+    if (/[\u0A00-\u0A7F]/.test(text)) return 'pa';
+    if (/[\u0980-\u09FF]/.test(text)) return 'bn';
+    if (/[\u0A80-\u0AFF]/.test(text)) return 'gu';
+    if (/[\u0B80-\u0BFF]/.test(text)) return 'ta';
+    if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
+    if (/[\u0C80-\u0CFF]/.test(text)) return 'kn';
+    if (/[\u0D00-\u0D7F]/.test(text)) return 'ml';
+    if (/[\u0600-\u06FF]/.test(text)) return 'ur';
+    if (/[\u0900-\u097F]/.test(text)) return 'hi';
+    if (/\b(hai|haan|bhai|yaar|kya|kaise|kar|karo|mera|meri|mujhe|acha|accha|theek|kholo|chahiye)\b/i.test(text)) return 'hinglish';
+    return 'en';
+  }
+
+  async function nativeVoiceInput() {
+    if (nativeListening || !window.kritamDesktop?.listenNativeSpeech) return false;
+    nativeListening = true;
+    const status = document.querySelector('#statusText');
+    const mic = document.querySelector('#micButton');
+    const input = document.querySelector('#messageInput');
+    try {
+      mic?.classList.add('listening');
+      if (typeof window.setState === 'function') window.setState('listening', 'Listening…');
+      else if (status) status.textContent = 'Listening…';
+      const language = detectLanguage(input?.value || '');
+      const result = await window.kritamDesktop.listenNativeSpeech(language);
+      const text = String(result?.text || '').trim();
+      if (!text) throw new Error('I did not catch that. Please try again.');
+      if (input) {
+        input.value = text;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      document.querySelector('#sendButton')?.click();
+      return true;
+    } catch (error) {
+      if (typeof window.toast === 'function') window.toast(error.message || 'Voice input is unavailable.');
+      else console.warn('Native voice input failed:', error);
+      if (typeof window.setState === 'function') window.setState('idle', 'KRITAM is ready');
+      return false;
+    } finally {
+      nativeListening = false;
+      mic?.classList.remove('listening');
+    }
   }
 
   function installSpeechTuning() {
@@ -89,6 +135,12 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       stopSpeaking('interrupt');
+      return;
+    }
+    if (window.kritamDesktop?.listenNativeSpeech) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      nativeVoiceInput();
     }
   }, true);
 
@@ -99,5 +151,5 @@
   refreshVoices();
   if ('speechSynthesis' in window) speechSynthesis.addEventListener?.('voiceschanged', refreshVoices);
   installSpeechTuning();
-  window.kritamVoiceController = Object.freeze({ stopSpeaking, isInterrupt, refreshVoices });
+  window.kritamVoiceController = Object.freeze({ stopSpeaking, isInterrupt, refreshVoices, nativeVoiceInput });
 })();
