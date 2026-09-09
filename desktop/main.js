@@ -14,9 +14,8 @@ const { createMemoryStore } = require(path.join(__dirname, '..', 'core', 'memory
 const { createScreenCapture } = require(path.join(__dirname, '..', 'core', 'screen'));
 const { createVisionAnalyzer } = require(path.join(__dirname, '..', 'core', 'vision'));
 const { createVisionRuntime } = require(path.join(__dirname, '..', 'core', 'vision-runtime'));
-const { buildTargetPrompt, parseVisionTargets } = require(path.join(__dirname, '..', 'core', 'screen-targets'));
+const { buildTargetPrompt, parseVisionTargets, selectTarget } = require(path.join(__dirname, '..', 'core', 'screen-targets'));
 const { createActionRecord, verifyResult, applyScreenVerification } = require(path.join(__dirname, '..', 'core', 'action-verifier'));
-const { verifyScreenAction } = require(path.join(__dirname, '..', 'core', 'verification'));
 
 let mainWindow, companionWindow, tray;
 let companionState = { state: 'idle', text: 'KRITAM IS READY' };
@@ -96,8 +95,10 @@ async function captureDesktopFile() {
   const tempDir = path.join(app.getPath('userData'), 'screenshots');
   fs.mkdirSync(tempDir, { recursive: true });
   const filePath = path.join(tempDir, `kritam-desktop-${Date.now()}.png`);
-  fs.writeFileSync(filePath, desktop.image.toPNG());
-  return { ...desktop, filePath };
+  const png = desktop.image.toPNG();
+  fs.writeFileSync(filePath, png);
+  const fingerprint = crypto.createHash('sha256').update(png).digest('hex');
+  return { ...desktop, filePath, fingerprint };
 }
 
 async function findDesktopTargets(instruction) {
@@ -106,7 +107,8 @@ async function findDesktopTargets(instruction) {
   const desktop = await captureDesktopFile();
   try {
     const analysis = await createVisionAnalyzer().analyzeImage(desktop.filePath, buildTargetPrompt(instruction));
-    return { type: 'screen-targets', width: desktop.width, height: desktop.height, display: desktop.display.bounds, targets: parseVisionTargets(analysis.text), model: analysis.model };
+    const targets = parseVisionTargets(analysis.text);
+    return { type: 'screen-targets', width: desktop.width, height: desktop.height, display: desktop.display.bounds, fingerprint: desktop.fingerprint, targets, selection: selectTarget(targets, instruction), model: analysis.model };
   } finally {
     try { fs.unlinkSync(desktop.filePath); } catch (_) {}
   }
@@ -118,13 +120,10 @@ function mapTargetToDisplay(target, imageWidth, imageHeight, bounds) {
   if (!Number.isFinite(x) || !Number.isFinite(y) || imageWidth <= 0 || imageHeight <= 0) throw new Error('Invalid screen target coordinates.');
   const safeX = Math.max(0, Math.min(imageWidth, x));
   const safeY = Math.max(0, Math.min(imageHeight, y));
-  return {
-    x: Math.round(bounds.x + (safeX / imageWidth) * bounds.width),
-    y: Math.round(bounds.y + (safeY / imageHeight) * bounds.height),
-  };
+  return { x: Math.round(bounds.x + (safeX / imageWidth) * bounds.width), y: Math.round(bounds.y + (safeY / imageHeight) * bounds.height) };
 }
 
-async function clickDesktopTarget(target, imageWidth, imageHeight, instruction) {
+async function clickDesktopTarget(target, imageWidth, imageHeight, instruction, expectedFingerprint) {
   if (!target || target.actionable === false) throw new Error('The selected target is not actionable.');
   const confidence = Number(target.confidence);
   if (!Number.isFinite(confidence) || confidence < 0.75) throw new Error('KRITAM will not click a low-confidence screen target.');
@@ -134,14 +133,13 @@ async function clickDesktopTarget(target, imageWidth, imageHeight, instruction) 
   const record = createActionRecord(request);
   const before = await captureDesktopFile();
   try {
+    if (expectedFingerprint && before.fingerprint !== expectedFingerprint) throw new Error('The desktop changed since the target was found. Please rescan the screen before clicking.');
     const result = await computerInput.click(request.arguments);
     const confirmed = verifyResult(record, result);
     await new Promise((resolve) => setTimeout(resolve, 350));
     const after = await captureDesktopFile();
     try {
-      const beforeHash = crypto.createHash('sha256').update(fs.readFileSync(before.filePath)).digest('hex');
-      const afterHash = crypto.createHash('sha256').update(fs.readFileSync(after.filePath)).digest('hex');
-      const changed = beforeHash !== afterHash;
+      const changed = before.fingerprint !== after.fingerprint;
       return { ...confirmed, instruction, target: { ...target, ...point }, verification: applyScreenVerification(confirmed, { changed, confidence: changed ? 1 : 0, note: changed ? 'Desktop image changed after the click.' : 'Desktop image was unchanged after the click.' }) };
     } finally { try { fs.unlinkSync(after.filePath); } catch (_) {} }
   } finally { try { fs.unlinkSync(before.filePath); } catch (_) {} }
@@ -160,7 +158,8 @@ ipcMain.handle('tool:execute', async (_event, request) => {
   return { ...result, tool: validated.tool };
 });
 ipcMain.handle('screen:targets', async (_event, instruction) => findDesktopTargets(instruction));
-ipcMain.handle('screen:click-target', async (_event, target, imageWidth, imageHeight, instruction) => clickDesktopTarget(target, imageWidth, imageHeight, instruction));
+ipcMain.handle('screen:select-target', async (_event, targets, instruction) => selectTarget(targets, instruction));
+ipcMain.handle('screen:click-target', async (_event, target, imageWidth, imageHeight, instruction, expectedFingerprint) => clickDesktopTarget(target, imageWidth, imageHeight, instruction, expectedFingerprint));
 ipcMain.handle('app:open-url', async (_event, url) => executeTool({ tool: 'open_url', arguments: { url } }));
 ipcMain.handle('login:set-enabled', (_event, enabled) => { app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath }); return app.getLoginItemSettings().openAtLogin; });
 ipcMain.handle('memory:get-recent', (_event, conversationId = 'default', limit = 50) => memory.getRecentMessages(conversationId, limit));
