@@ -14,6 +14,7 @@ KRITAM is evolving from a desktop AI companion into a **voice-first computer ass
 - Permission and policy controls
 - A floating desktop companion
 - English + Hinglish interaction
+- Vision-assisted computer control with explicit approval
 
 ## What is implemented now
 
@@ -32,6 +33,9 @@ KRITAM is evolving from a desktop AI companion into a **voice-first computer ass
 - **Bounded multi-step task planning** with approval before each controlled step
 - **Action verification foundation** for tool and post-action confirmation
 - Safe mouse/keyboard input foundation with high-risk approval
+- **Desktop-wide vision target detection** using local vision-capable Ollama models
+- **Confidence-gated screen target clicking** with coordinate mapping to the primary display
+- **Post-click desktop change verification** using before/after screen fingerprints
 - Camera permission flow
 - Dark/light UI themes
 - Windows sign-in launch option
@@ -58,15 +62,24 @@ Local Ollama              Structured Task Plan
      +--------------------> Native Tool Executor
                                   |
                                   v
-                            Windows / UI State
+                         Desktop Screen / UI
+                                  |
+                         Vision Target Detection
+                                  |
+                         Approved Mouse / Keyboard
                                   |
                                   v
-                         Verification / Result
+                         Before/After Verification
+                                  |
+                                  v
+                            Result / Voice
 ```
 
 ### Security boundary
 
 The LLM is **not** given arbitrary shell access. Native actions pass through a small tool registry and policy layer. Tools are explicitly allowlisted and arguments are validated before execution.
+
+Screen inspection and computer-control operations are treated as high-risk capabilities. Screen target detection requires explicit approval, target coordinates are confidence-gated, and controlled mouse/keyboard operations remain separate from unrestricted operating-system access.
 
 Multi-step tasks are capped at eight steps and controlled actions are approved one step at a time. Application state uses a fixed allowlist and read-only Windows process inspection rather than arbitrary process commands.
 
@@ -81,11 +94,44 @@ get_time
 app_state
 capture_screen
 analyze_screen
+screen_targets
 mouse_click
 type_text
 ```
 
 High-risk operations such as arbitrary shell commands, destructive file operations, credential access, or unrestricted process control are intentionally not exposed.
+
+## Computer-control safety model
+
+KRITAM follows a conservative visual-action loop:
+
+```text
+User command
+    ↓
+Identify intended screen action
+    ↓
+Request screen-inspection permission
+    ↓
+Capture primary desktop
+    ↓
+Local vision model finds relevant UI targets
+    ↓
+Reject non-actionable / low-confidence targets
+    ↓
+Request click approval
+    ↓
+Map vision coordinates to display coordinates
+    ↓
+Perform one controlled click
+    ↓
+Capture desktop again
+    ↓
+Compare before/after screen fingerprints
+    ↓
+Report confirmed or inconclusive result
+```
+
+This design deliberately avoids allowing the model to execute arbitrary PowerShell, shell commands, or unrestricted mouse/keyboard automation.
 
 ## Roadmap
 
@@ -123,8 +169,13 @@ High-risk operations such as arbitrary shell commands, destructive file operatio
 - [x] Application state detection
 - [x] Multi-step task planner foundation
 - [x] Action verification foundation
-- [ ] Full visual before/after verification
-- [ ] Full desktop-wide screen capture
+- [x] Desktop-wide screen capture foundation
+- [x] Vision-based UI target detection
+- [x] Confidence-gated target clicking
+- [x] Post-action desktop change verification
+- [ ] Multi-target selection and clarification
+- [ ] Visual recovery/retry loop
+- [ ] Full visual semantic before/after verification
 
 ### Phase 5 — KRITAM Ecosystem
 
