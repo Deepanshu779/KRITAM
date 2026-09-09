@@ -8,104 +8,63 @@ const PLATFORM_SEARCHERS = Object.freeze([
 ]);
 
 const PRODUCT_WORDS = Object.freeze([
-  'saree', 'sari', 'laptop', 'phone', 'mobile', 'shoes', 'shoe', 'watch', 'bag', 'dress',
-  'shirt', 'jeans', 'gift', 'headphones', 'earbuds', 'tv', 'tablet', 'camera', 'perfume',
-  'kurta', 'lehenga', 'jacket', 'appliance', 'fridge', 'refrigerator', 'washing machine',
+  'saree','sari','laptop','phone','mobile','shoes','shoe','watch','bag','dress','shirt','jeans','gift','headphones','earbuds','tv','tablet','camera','perfume','kurta','lehenga','jacket','fridge','refrigerator','washing machine',
 ]);
+const CONTENT_WORDS = Object.freeze(['cartoon','cartoons','animation','animated','movie','film','video','videos','song','music','gaana','show','series','podcast']);
 
 function normalize(text) { return String(text || '').trim().replace(/\s+/g, ' '); }
-function hasShoppingSignal(q) {
-  return /\b(buy|purchase|shopping|shop|find|search|show|need|want|lena|len(i|a)|chahiye|dekhna|dikha|dikhana|kharid|kharidna|खरीद|चाहिए|देखना|दिखाओ)\b/i.test(q);
-}
-function extractProduct(q) {
-  const lower = q.toLowerCase();
-  return PRODUCT_WORDS.find((word) => new RegExp(`\\b${word.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\b`, 'i').test(lower)) || null;
-}
+function hasShoppingSignal(q) { return /\b(buy|purchase|shopping|shop|find|search|show|need|want|lena|leni|chahiye|dekhna|dikha|dikhana|kharid|kharidna|खरीद|चाहिए|देखना|दिखाओ)\b/i.test(q); }
+function hasContentSignal(q) { return /\b(watch|play|show|see|dekhna|dikhao|chalao|chala|देखना|दिखाओ|चलाओ|चलाना|sunao|suno)\b/i.test(q); }
+function extractProduct(q) { const lower=q.toLowerCase(); return PRODUCT_WORDS.find((word)=>lower.includes(word))||null; }
+function extractContent(q) { const lower=q.toLowerCase(); return CONTENT_WORDS.find((word)=>lower.includes(word))||null; }
 function extractBeneficiary(q) {
-  const match = q.match(/\b(?:my|meri|mere|mummy|mom|mother|papa|dad|father|brother|sister|wife|husband|friend|daughter|son)\b[^.?!,;]{0,35}/i);
-  if (!match) return null;
-  const words = match[0].toLowerCase();
-  if (/mummy|mom|mother/.test(words)) return 'mummy ji';
-  if (/papa|dad|father/.test(words)) return 'papa ji';
-  if (/brother/.test(words)) return 'brother';
-  if (/sister/.test(words)) return 'sister';
-  if (/wife/.test(words)) return 'wife';
-  if (/husband/.test(words)) return 'husband';
-  if (/friend/.test(words)) return 'friend';
-  if (/daughter/.test(words)) return 'daughter';
-  if (/son/.test(words)) return 'son';
+  const words=q.toLowerCase();
+  if (/\b(mummy|mom|mother|maa)\b/.test(words)) return 'mummy ji';
+  if (/\b(papa|dad|father)\b/.test(words)) return 'papa ji';
+  if (/\b(bhai|bhaiya|brother)\b/.test(words)) return 'brother';
+  if (/\b(behen|didi|sister)\b/.test(words)) return 'sister';
+  if (/\b(wife)\b/.test(words)) return 'wife';
+  if (/\b(husband)\b/.test(words)) return 'husband';
+  if (/\b(friend|dost)\b/.test(words)) return 'friend';
+  if (/\b(son|beta)\b/.test(words)) return 'son';
+  if (/\b(daughter|beti)\b/.test(words)) return 'daughter';
   return null;
 }
-function extractColor(q) {
-  const match = q.match(/\b(red|blue|black|white|green|pink|yellow|purple|maroon|gold|golden|silver|beige|cream|navy|brown|grey|gray|लाल|नीला|काला|सफेद|हरा|गुलाबी|पीला)\b/i);
-  return match ? match[1] : null;
-}
-function extractBudget(q) {
-  const match = q.match(/(?:under|below|within|max(?:imum)?|upto|up to|budget|ke andar|tak|में|के अंदर)\s*(?:₹|rs\.?|inr)?\s*([\d,]+)\s*(?:₹|rs\.?|inr)?/i) || q.match(/(?:₹|rs\.?|inr)\s*([\d,]+)/i);
-  return match ? Number(match[1].replace(/,/g, '')) : null;
-}
-function extractStyle(q) {
-  const match = q.match(/\b(banarasi|silk|cotton|georgette|chiffon|linen|kanjeevaram|kanjivaram|party wear|casual|formal|running|gaming|office|wireless|leather|ethnic|western|traditional)\b/i);
-  return match ? match[1] : null;
-}
+function extractColor(q) { const match=q.match(/\b(red|blue|black|white|green|pink|yellow|purple|maroon|gold|golden|silver|beige|cream|navy|brown|grey|gray|लाल|नीला|काला|सफेद|हरा|गुलाबी|पीला)\b/i); return match?match[1]:null; }
+function extractBudget(q) { const match=q.match(/(?:under|below|within|max(?:imum)?|upto|up to|budget|ke andar|tak|में|के अंदर)\s*(?:₹|rs\.?|inr)?\s*([\d,]+)\s*(?:₹|rs\.?|inr)?/i)||q.match(/(?:₹|rs\.?|inr)\s*([\d,]+)/i); return match?Number(match[1].replace(/,/g,'')):null; }
+function extractStyle(q) { const match=q.match(/\b(banarasi|silk|cotton|georgette|chiffon|linen|kanjeevaram|kanjivaram|party wear|casual|formal|running|gaming|office|wireless|leather|ethnic|western|traditional)\b/i); return match?match[1]:null; }
 function detectIntent(text) {
-  const q = normalize(text);
-  if (!q) return null;
-  const product = extractProduct(q);
-  if (!product || !hasShoppingSignal(q)) return null;
-  const beneficiary = extractBeneficiary(q);
-  const color = extractColor(q);
-  const budget = extractBudget(q);
-  const style = extractStyle(q);
-  const missing = [];
-  if (!style) missing.push('style/type');
-  if (!color) missing.push('color');
-  if (!budget) missing.push('budget');
-  return { intent: 'shopping', product, beneficiary, slots: { style, color, budget }, missing, original: q };
+  const q=normalize(text); if(!q) return null;
+  const product=extractProduct(q), content=extractContent(q), beneficiary=extractBeneficiary(q);
+  if (product && hasShoppingSignal(q)) {
+    const slots={style:extractStyle(q),color:extractColor(q),budget:extractBudget(q)};
+    const missing=['style/type','color','budget'].filter((key)=>!slots[{ 'style/type':'style',color:'color',budget:'budget'}[key]]);
+    return {intent:'shopping',product,beneficiary,slots,missing,original:q};
+  }
+  if (content && hasContentSignal(q)) return { intent:'content', contentType:content, beneficiary, slots:{}, missing:[], original:q };
+  return null;
 }
 function mergeIntent(intent, followUp) {
   if (!intent) return detectIntent(followUp);
-  const q = normalize(followUp);
-  const slots = { ...intent.slots };
-  slots.color ||= extractColor(q);
-  slots.budget ||= extractBudget(q);
-  slots.style ||= extractStyle(q);
-  return { ...intent, slots, missing: ['style/type', 'color', 'budget'].filter((key) => !slots[{ 'style/type': 'style', color: 'color', budget: 'budget' }[key]]) };
+  const q=normalize(followUp); const slots={...intent.slots};
+  if (intent.intent==='shopping') { slots.color ||= extractColor(q); slots.budget ||= extractBudget(q); slots.style ||= extractStyle(q); }
+  return {...intent,slots,missing:intent.intent==='shopping'?['style/type','color','budget'].filter((key)=>!slots[{ 'style/type':'style',color:'color',budget:'budget'}[key]]):[]};
 }
-function buildSearchQuery(intent) {
-  const parts = [intent.slots.style, intent.slots.color, intent.product].filter(Boolean);
-  let query = parts.join(' ');
-  if (intent.slots.budget) query += ` under ₹${intent.slots.budget}`;
-  return query.trim();
-}
-function buildPlatformSearches(intent) {
-  const query = buildSearchQuery(intent);
-  return PLATFORM_SEARCHERS.map((platform) => ({ name: platform.name, url: platform.build(query), query }));
-}
+function buildSearchQuery(intent) { const parts=[intent.slots.style,intent.slots.color,intent.product].filter(Boolean); let query=parts.join(' '); if(intent.slots.budget)query+=` under ₹${intent.slots.budget}`; return query.trim(); }
+function buildPlatformSearches(intent) { const query=buildSearchQuery(intent); return PLATFORM_SEARCHERS.map((platform)=>({name:platform.name,url:platform.build(query),query})); }
 function friendlyPrompt(intent) {
-  const person = intent.beneficiary ? `${intent.beneficiary}` : 'aapke liye';
-  if (intent.missing.includes('style/type')) return `Bilkul ji. ${person} ke liye ${intent.product} dhoondh dete hain. Kis type ya style ki pasand hai?`;
-  if (intent.missing.includes('color')) return `Perfect ji. Colour kaunsa rakhna hai?`;
-  if (intent.missing.includes('budget')) return `Nice ji. Budget roughly kitna rakhna hai?`;
-  return `Bilkul ji, main options compare karne ke liye ready hoon.`;
+  const person=intent.beneficiary||'aapke liye';
+  if(intent.intent==='content') return `Bilkul ji. ${person} ke liye ${intent.contentType} dhoondh deti hoon.`;
+  if(intent.missing.includes('style/type')) return `Bilkul ji. ${person} ke liye ${intent.product} dhoondh dete hain. Kis type ya style ki pasand hai?`;
+  if(intent.missing.includes('color')) return 'Perfect ji. Colour kaunsa rakhna hai?';
+  if(intent.missing.includes('budget')) return 'Nice ji. Budget roughly kitna rakhna hai?';
+  return 'Bilkul ji, main options compare karne ke liye ready hoon.';
 }
-function createConversationState(intent) {
-  return { intent, updatedAt: Date.now() };
+function createConversationState(intent) { return {intent,updatedAt:Date.now()}; }
+function isFresh(state) { return Boolean(state&&Date.now()-state.updatedAt<SESSION_TTL_MS); }
+function planConversationalMessage(text,state=null) {
+  const fresh=isFresh(state)?state.intent:null; const detected=fresh?mergeIntent(fresh,text):detectIntent(text); if(!detected)return null;
+  const complete=detected.intent==='content'||detected.missing.length===0;
+  return {matched:true,intent:detected.intent,state:createConversationState(detected),response:friendlyPrompt(detected),needsDetails:!complete,searchQuery:detected.intent==='shopping'&&complete?buildSearchQuery(detected):detected.intent==='content'?detected.contentType:null,platforms:detected.intent==='shopping'&&complete?buildPlatformSearches(detected):[]};
 }
-function isFresh(state) { return Boolean(state && Date.now() - state.updatedAt < SESSION_TTL_MS); }
-function planConversationalMessage(text, state = null) {
-  const fresh = isFresh(state) ? state.intent : null;
-  const detected = fresh ? mergeIntent(fresh, text) : detectIntent(text);
-  if (!detected) return null;
-  const complete = detected.missing.length === 0;
-  return {
-    matched: true,
-    intent: detected.intent,
-    state: createConversationState(detected),
-    response: friendlyPrompt(detected),
-    needsDetails: !complete,
-    searchQuery: complete ? buildSearchQuery(detected) : null,
-    platforms: complete ? buildPlatformSearches(detected) : [],
-  };
-}
-module.exports = { SESSION_TTL_MS, PLATFORM_SEARCHERS, detectIntent, mergeIntent, buildSearchQuery, buildPlatformSearches, createConversationState, isFresh, planConversationalMessage };
+module.exports={SESSION_TTL_MS,PLATFORM_SEARCHERS,detectIntent,mergeIntent,buildSearchQuery,buildPlatformSearches,createConversationState,isFresh,planConversationalMessage};
