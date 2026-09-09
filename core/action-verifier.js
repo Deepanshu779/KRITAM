@@ -1,53 +1,6 @@
-const VERIFICATION_METHODS = Object.freeze({
-  mouse_click: 'post_action_screen',
-  type_text: 'post_action_screen',
-  open_app: 'application_state',
-  open_url: 'application_state',
-  open_path: 'application_state',
-});
-
-function createActionRecord({ tool, arguments: args = {}, timestamp = new Date().toISOString() }) {
-  if (typeof tool !== 'string' || !tool.trim()) throw new Error('A tool name is required.');
-  return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    tool,
-    arguments: { ...args },
-    timestamp,
-    status: 'executed',
-    verification: 'pending',
-  };
-}
-
-function getVerificationPlan(tool) {
-  const method = VERIFICATION_METHODS[tool];
-  if (!method) return { supported: false, method: 'none', reason: 'No verification strategy is registered for this tool.' };
-  return { supported: true, method };
-}
-
-function verifyResult(record, result, { successField = 'success' } = {}) {
-  if (!record || typeof record !== 'object') throw new Error('An action record is required.');
-  if (!result || typeof result !== 'object') {
-    return { ...record, status: 'failed', verification: 'failed', reason: 'The tool returned no structured result.' };
-  }
-  const succeeded = result[successField] === true;
-  return {
-    ...record,
-    status: succeeded ? 'executed' : 'failed',
-    verification: succeeded ? 'tool-confirmed' : 'failed',
-    result: { ...result },
-  };
-}
-
-function applyScreenVerification(record, { changed, confidence = null, note = '' } = {}) {
-  if (!record || typeof record !== 'object') throw new Error('An action record is required.');
-  if (typeof changed !== 'boolean') throw new Error('Screen verification requires a boolean changed value.');
-  const boundedConfidence = confidence == null ? null : Math.max(0, Math.min(1, Number(confidence)));
-  return {
-    ...record,
-    verification: changed ? 'screen-confirmed' : 'screen-unchanged',
-    verificationConfidence: Number.isFinite(boundedConfidence) ? boundedConfidence : null,
-    verificationNote: String(note || ''),
-  };
-}
-
+const VERIFICATION_METHODS = Object.freeze({ mouse_click: 'semantic_post_action_screen', type_text: 'semantic_post_action_screen', keyboard_shortcut: 'semantic_post_action_screen', open_app: 'application_state', open_url: 'application_state', open_path: 'application_state' });
+function createActionRecord({ tool, arguments: args = {}, timestamp = new Date().toISOString() }) { if (typeof tool !== 'string' || !tool.trim()) throw new Error('A tool name is required.'); return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, tool, arguments: { ...args }, timestamp, status: 'executed', verification: 'pending' }; }
+function getVerificationPlan(tool) { const method = VERIFICATION_METHODS[tool]; if (!method) return { supported: false, method: 'none', reason: 'No verification strategy is registered for this tool.' }; return { supported: true, method }; }
+function verifyResult(record, result, { successField = 'success' } = {}) { if (!record || typeof record !== 'object') throw new Error('An action record is required.'); if (!result || typeof result !== 'object') return { ...record, status: 'failed', verification: 'failed', reason: 'The tool returned no structured result.' }; const succeeded = result[successField] === true; return { ...record, status: succeeded ? 'executed' : 'failed', verification: succeeded ? 'tool-confirmed' : 'failed', result: { ...result } }; }
+function applyScreenVerification(record, { changed, confidence = null, note = '' } = {}) { if (!record || typeof record !== 'object') throw new Error('An action record is required.'); if (typeof changed !== 'boolean') throw new Error('Screen verification requires a boolean changed value.'); const boundedConfidence = confidence == null ? null : Math.max(0, Math.min(1, Number(confidence))); return { ...record, verification: changed ? 'screen-confirmed' : 'screen-unchanged', verificationConfidence: Number.isFinite(boundedConfidence) ? boundedConfidence : null, verificationNote: String(note || '') }; }
 module.exports = { VERIFICATION_METHODS, createActionRecord, getVerificationPlan, verifyResult, applyScreenVerification };
