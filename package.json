@@ -4,12 +4,49 @@
   "private": true,
   "description": "A privacy-first personal desktop AI companion.",
   "main": "desktop/main.js",
+  "author": "Deepanshu779",
+  "license": "MIT",
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "test": "node --test"
+    "test": "node --test",
+    "dist:win": "electron-builder --win nsis"
   },
   "devDependencies": {
-    "electron": "^37.2.6"
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.kritam.desktop",
+    "productName": "KRITAM",
+    "asar": true,
+    "files": [
+      "desktop/**/*",
+      "core/**/*",
+      "assets/**/*",
+      "index.html",
+      "app.js",
+      "voice-controller.js",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "KRITAM-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "KRITAM"
+    }
   }
 }
