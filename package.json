@@ -6,7 +6,8 @@
   "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron ."
+    "dev": "electron .",
+    "test": "node --test"
   },
   "devDependencies": {
     "electron": "^37.2.6"
