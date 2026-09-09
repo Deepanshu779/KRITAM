@@ -1,8 +1,10 @@
 const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
+const https = require('https');
 const { shell } = require('electron');
 const { getApplicationState } = require('./app-state');
+const { launchInstalledApp } = require('./system-launcher');
 
 const WINDOWS_APPS = Object.freeze({
   calculator: { file: 'calc.exe', label: 'Calculator' },
@@ -13,13 +15,41 @@ const WINDOWS_APPS = Object.freeze({
 function runAllowedApp(appName) {
   const key = String(appName || '').trim().toLowerCase();
   const app = WINDOWS_APPS[key];
-  if (!app) throw new Error(`KRITAM does not allow launching '${appName}'.`);
+  if (!app) return launchInstalledApp(appName);
   return new Promise((resolve, reject) => {
     execFile(app.file, [], { windowsHide: true }, (error) => {
       if (error) return reject(new Error(`Could not launch ${app.label}.`));
       resolve({ success: true, app: app.label });
     });
   });
+}
+
+function checkWebsite(url) {
+  return new Promise((resolve, reject) => {
+    const request = https.request(url, { method: 'HEAD', timeout: 7000, headers: { 'User-Agent': 'KRITAM/1.0' } }, (response) => {
+      response.resume();
+      resolve(response.statusCode >= 100 && response.statusCode < 600);
+    });
+    request.on('timeout', () => request.destroy(new Error('timeout')));
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+async function normalizeWebsite(value) {
+  let text = String(value || '').trim();
+  if (!text) throw new Error('A website is required.');
+  if (!/^https?:\/\//i.test(text)) text = `https://${text}`;
+  let parsed;
+  try { parsed = new URL(text); } catch (_) { throw new Error('That does not look like a valid website.'); }
+  if (parsed.protocol !== 'https:' || !parsed.hostname || /\s/.test(parsed.hostname)) throw new Error('Only valid HTTPS websites are allowed.');
+  try {
+    const available = await checkWebsite(parsed.toString());
+    if (!available) throw new Error('unavailable');
+  } catch (_) {
+    throw new Error(`I couldn't reach ${parsed.hostname}. The website may be unavailable or you may be offline.`);
+  }
+  return parsed.toString();
 }
 
 async function openPath(target) {
@@ -36,13 +66,10 @@ async function openPath(target) {
 
 const tools = {
   async open_url({ url }) {
-    const value = String(url || '').trim();
-    let parsed;
-    try { parsed = new URL(value); } catch (_) { throw new Error('Only valid HTTPS URLs are allowed.'); }
-    if (parsed.protocol !== 'https:') throw new Error('Only HTTPS websites are allowed.');
-    const error = await shell.openExternal(parsed.toString());
+    const normalized = await normalizeWebsite(url);
+    const error = await shell.openExternal(normalized);
     if (error) throw new Error(error);
-    return { success: true, url: parsed.toString() };
+    return { success: true, url: normalized };
   },
   async open_app({ app }) { return runAllowedApp(app); },
   async open_path({ path: target }) { return openPath(target); },
@@ -59,4 +86,4 @@ async function executeTool(request) {
   return fn(request.arguments || {});
 }
 
-module.exports = { executeTool };
+module.exports = { executeTool, normalizeWebsite, checkWebsite };
