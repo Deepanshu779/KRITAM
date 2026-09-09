@@ -1,5 +1,5 @@
 const path = require('path');
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, desktopCapturer, screen } = require('electron');
 const https = require('https');
 const { getStatus: getOllamaStatus, chat: ollamaChat } = require(path.join(__dirname, '..', 'core', 'ollama'));
 const { planLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent'));
@@ -12,6 +12,7 @@ const { createMemoryStore } = require(path.join(__dirname, '..', 'core', 'memory
 const { createScreenCapture } = require(path.join(__dirname, '..', 'core', 'screen'));
 const { createVisionAnalyzer } = require(path.join(__dirname, '..', 'core', 'vision'));
 const { createVisionRuntime } = require(path.join(__dirname, '..', 'core', 'vision-runtime'));
+const { buildTargetPrompt, parseVisionTargets } = require(path.join(__dirname, '..', 'core', 'screen-targets'));
 
 let mainWindow, companionWindow, tray;
 let companionState = { state: 'idle', text: 'KRITAM IS READY' };
@@ -76,6 +77,30 @@ ipcMain.handle('ollama:chat', async (_event, messages, options) => { if (!Array.
 const screenCapture = createScreenCapture((options) => mainWindow.capturePage(options), path.join(app.getPath('userData'), 'screenshots'));
 const vision = createVisionRuntime({ capture: () => screenCapture.capture(), analyzeImage: (filePath, prompt) => createVisionAnalyzer().analyzeImage(filePath, prompt) });
 
+async function captureDesktopScreen() {
+  if (process.platform !== 'win32') throw new Error('Desktop-wide capture is currently supported on Windows only.');
+  const display = screen.getPrimaryDisplay();
+  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: display.size.width, height: display.size.height } });
+  if (!sources.length || sources[0].thumbnail.isEmpty()) throw new Error('No desktop screen was available for capture.');
+  return { image: sources[0].thumbnail, width: display.size.width, height: display.size.height };
+}
+
+async function findDesktopTargets(instruction) {
+  const desktop = await captureDesktopScreen();
+  const tempDir = path.join(app.getPath('userData'), 'screenshots');
+  const fs = require('fs');
+  fs.mkdirSync(tempDir, { recursive: true });
+  const filePath = path.join(tempDir, `kritam-desktop-${Date.now()}.png`);
+  desktop.image.toPNG();
+  fs.writeFileSync(filePath, desktop.image.toPNG());
+  try {
+    const analysis = await createVisionAnalyzer().analyzeImage(filePath, buildTargetPrompt(instruction));
+    return { type: 'screen-targets', width: desktop.width, height: desktop.height, targets: parseVisionTargets(analysis.text), model: analysis.model };
+  } finally {
+    try { fs.unlinkSync(filePath); } catch (_) {}
+  }
+}
+
 ipcMain.handle('tool:execute', async (_event, request) => {
   const validated = validateToolRequest(request);
   let result;
@@ -87,6 +112,7 @@ ipcMain.handle('tool:execute', async (_event, request) => {
   console.log(`[KRITAM TOOL] ${validated.tool}`);
   return { ...result, tool: validated.tool };
 });
+ipcMain.handle('screen:targets', async (_event, instruction) => findDesktopTargets(instruction));
 ipcMain.handle('app:open-url', async (_event, url) => executeTool({ tool: 'open_url', arguments: { url } }));
 ipcMain.handle('login:set-enabled', (_event, enabled) => { app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath }); return app.getLoginItemSettings().openAtLogin; });
 ipcMain.handle('memory:get-recent', (_event, conversationId = 'default', limit = 50) => memory.getRecentMessages(conversationId, limit));
