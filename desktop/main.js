@@ -3,6 +3,7 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electr
 const https = require('https');
 const { getStatus: getOllamaStatus, chat: ollamaChat } = require(path.join(__dirname, '..', 'core', 'ollama'));
 const { planLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent'));
+const { runLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent-runtime'));
 const { validateToolRequest } = require(path.join(__dirname, '..', 'core', 'policy'));
 const { executeTool } = require(path.join(__dirname, '..', 'core', 'tools'));
 
@@ -60,6 +61,7 @@ ipcMain.handle('news:get', fetchHeadlines);
 ipcMain.handle('companion:show', showCompanion);
 ipcMain.handle('companion:set-state', (_event, state, text) => setCompanionState(state, text));
 ipcMain.handle('agent:plan', (_event, text) => planLocalCommand(text));
+ipcMain.handle('agent:run-local', async (_event, text) => runLocalCommand(text));
 ipcMain.handle('ollama:status', () => getOllamaStatus());
 ipcMain.handle('ollama:chat', async (_event, messages, options) => { if (!Array.isArray(messages) || messages.length === 0) throw new Error('A conversation is required.'); return ollamaChat(messages, options || {}); });
 ipcMain.handle('tool:execute', async (_event, request) => { const validated = validateToolRequest(request); const result = await executeTool(validated); console.log(`[KRITAM TOOL] ${validated.tool}`, validated.arguments); return { ...result, tool: validated.tool }; });
