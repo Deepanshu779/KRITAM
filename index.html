@@ -8,6 +8,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
+    <style>
+      .mic-button svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block}
+      .mic-button{border-radius:9px;transition:background .18s,color .18s,transform .18s}
+      .mic-button:hover{background:#29292d;color:#f2f2ef}
+      .mic-button.listening{background:rgba(183,238,161,.12);transform:scale(1.04)}
+      .profile{border-radius:9px}
+    </style>
   </head>
   <body>
     <main class="app-shell">
