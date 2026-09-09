@@ -2,6 +2,7 @@ const path = require('path');
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
 const https = require('https');
 const { getStatus: getOllamaStatus, chat: ollamaChat } = require(path.join(__dirname, '..', 'core', 'ollama'));
+const { planLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent'));
 const { validateToolRequest } = require(path.join(__dirname, '..', 'core', 'policy'));
 const { executeTool } = require(path.join(__dirname, '..', 'core', 'tools'));
 
@@ -25,14 +26,12 @@ function fetchHeadlines() {
     request.on('error', () => resolve(['You appear to be offline. I can still help with local tasks.']));
   });
 }
-
 function setCompanionState(state = 'idle', text) {
   const allowed = ['idle', 'listening', 'thinking', 'speaking', 'happy'];
   companionState = { state: allowed.includes(state) ? state : 'idle', text: text || undefined };
   if (companionWindow && !companionWindow.isDestroyed()) companionWindow.webContents.send('companion:state', companionState);
   return companionState;
 }
-
 function createMainWindow() {
   mainWindow = new BrowserWindow({ width: 1180, height: 760, minWidth: 850, minHeight: 600, show: false, backgroundColor: '#121214', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true } });
   mainWindow.loadFile(path.join(appRoot, 'index.html'));
@@ -40,7 +39,6 @@ function createMainWindow() {
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => console.error(`KRITAM failed to load UI: ${errorCode} ${errorDescription}`));
   mainWindow.on('close', (event) => { if (!app.isQuitting) { event.preventDefault(); mainWindow.hide(); } });
 }
-
 function createCompanionWindow() {
   companionWindow = new BrowserWindow({ width: 330, height: 460, minWidth: 330, maxWidth: 330, minHeight: 460, maxHeight: 460, show: false, frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true, resizable: false, webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true } });
   companionWindow.setAlwaysOnTop(true, 'floating'); companionWindow.loadFile(path.join(__dirname, 'companion.html'));
@@ -48,41 +46,22 @@ function createCompanionWindow() {
   companionWindow.once('ready-to-show', () => companionWindow.showInactive());
   companionWindow.webContents.on('did-finish-load', () => setCompanionState(companionState.state, companionState.text));
 }
-
-function showCompanion() {
-  companionWindow?.showInactive();
-  setCompanionState(companionState.state, companionState.text);
-  companionWindow?.webContents.send('daily-briefing-request');
-}
-
+function showCompanion() { companionWindow?.showInactive(); setCompanionState(companionState.state, companionState.text); companionWindow?.webContents.send('daily-briefing-request'); }
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(appRoot, 'assets', 'kritam-avatar.png')).resize({ width: 32, height: 32 });
   tray = new Tray(icon); tray.setToolTip('KRITAM — ready when you are');
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Talk to KRITAM', click: () => { mainWindow.show(); mainWindow.focus(); } },
-    { label: 'Show companion', click: showCompanion },
-    { type: 'separator' }, { label: 'Quit KRITAM', click: () => { app.isQuitting = true; app.quit(); } }
-  ]));
+  tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Talk to KRITAM', click: () => { mainWindow.show(); mainWindow.focus(); } }, { label: 'Show companion', click: showCompanion }, { type: 'separator' }, { label: 'Quit KRITAM', click: () => { app.isQuitting = true; app.quit(); } }]));
   tray.on('click', showCompanion);
 }
-
 app.whenReady().then(() => { createMainWindow(); createCompanionWindow(); createTray(); });
 app.on('window-all-closed', (event) => event.preventDefault());
 app.on('activate', () => mainWindow?.show());
-
 ipcMain.handle('news:get', fetchHeadlines);
 ipcMain.handle('companion:show', showCompanion);
 ipcMain.handle('companion:set-state', (_event, state, text) => setCompanionState(state, text));
+ipcMain.handle('agent:plan', (_event, text) => planLocalCommand(text));
 ipcMain.handle('ollama:status', () => getOllamaStatus());
-ipcMain.handle('ollama:chat', async (_event, messages, options) => {
-  if (!Array.isArray(messages) || messages.length === 0) throw new Error('A conversation is required.');
-  return ollamaChat(messages, options || {});
-});
-ipcMain.handle('tool:execute', async (_event, request) => {
-  const validated = validateToolRequest(request);
-  const result = await executeTool(validated);
-  console.log(`[KRITAM TOOL] ${validated.tool}`, validated.arguments);
-  return { ...result, tool: validated.tool };
-});
+ipcMain.handle('ollama:chat', async (_event, messages, options) => { if (!Array.isArray(messages) || messages.length === 0) throw new Error('A conversation is required.'); return ollamaChat(messages, options || {}); });
+ipcMain.handle('tool:execute', async (_event, request) => { const validated = validateToolRequest(request); const result = await executeTool(validated); console.log(`[KRITAM TOOL] ${validated.tool}`, validated.arguments); return { ...result, tool: validated.tool }; });
 ipcMain.handle('app:open-url', async (_event, url) => executeTool({ tool: 'open_url', arguments: { url } }));
 ipcMain.handle('login:set-enabled', (_event, enabled) => { app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath }); return app.getLoginItemSettings().openAtLogin; });
