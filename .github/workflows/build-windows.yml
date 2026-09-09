@@ -1,4 +1,4 @@
-name: KRITAM Windows Release
+name: KRITAM Windows Preview
 
 on:
   push:
@@ -7,18 +7,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-windows:
+  build-windows-preview:
     runs-on: windows-latest
     timeout-minutes: 25
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,34 +30,13 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Ensure release tag exists
-        shell: pwsh
-        run: |
-          $version = node -p "require('./package.json').version"
-          $tag = "v$version"
-          git fetch --tags origin
-          git show-ref --tags --verify --quiet "refs/tags/$tag"
-          if ($LASTEXITCODE -ne 0) {
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag $tag
-            git push origin $tag
-            Write-Host "Created release tag $tag"
-          } else {
-            Write-Host "Release tag $tag already exists"
-          }
+      - name: Build unpacked Windows preview
+        run: npx electron-builder --win dir --publish never
 
-      - name: Build Windows installer
-        run: npx electron-builder --win nsis --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Windows build artifacts
+      - name: Upload Windows preview
         uses: actions/upload-artifact@v4
         with:
-          name: KRITAM-Windows-Installer
-          path: |
-            dist/*.exe
-            dist/latest.yml
-            dist/*.blockmap
+          name: KRITAM-Windows-Preview
+          path: dist/win-unpacked/**
           if-no-files-found: error
+          retention-days: 7
