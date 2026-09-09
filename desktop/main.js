@@ -15,6 +15,7 @@ const { createScreenCapture } = require(path.join(__dirname, '..', 'core', 'scre
 const { createVisionAnalyzer } = require(path.join(__dirname, '..', 'core', 'vision'));
 const { createVisionRuntime } = require(path.join(__dirname, '..', 'core', 'vision-runtime'));
 const { buildTargetPrompt, parseVisionTargets, selectTarget } = require(path.join(__dirname, '..', 'core', 'screen-targets'));
+const { buildVerificationPrompt, normalizeVerification } = require(path.join(__dirname, '..', 'core', 'semantic-verification'));
 const { createActionRecord, verifyResult, applyScreenVerification } = require(path.join(__dirname, '..', 'core', 'action-verifier'));
 
 let mainWindow, companionWindow, tray;
@@ -109,17 +110,13 @@ async function findDesktopTargets(instruction) {
     const analysis = await createVisionAnalyzer().analyzeImage(desktop.filePath, buildTargetPrompt(instruction));
     const targets = parseVisionTargets(analysis.text);
     return { type: 'screen-targets', width: desktop.width, height: desktop.height, display: desktop.display.bounds, fingerprint: desktop.fingerprint, targets, selection: selectTarget(targets, instruction), model: analysis.model };
-  } finally {
-    try { fs.unlinkSync(desktop.filePath); } catch (_) {}
-  }
+  } finally { try { fs.unlinkSync(desktop.filePath); } catch (_) {} }
 }
 
 function mapTargetToDisplay(target, imageWidth, imageHeight, bounds) {
-  const x = Number(target?.x);
-  const y = Number(target?.y);
+  const x = Number(target?.x), y = Number(target?.y);
   if (!Number.isFinite(x) || !Number.isFinite(y) || imageWidth <= 0 || imageHeight <= 0) throw new Error('Invalid screen target coordinates.');
-  const safeX = Math.max(0, Math.min(imageWidth, x));
-  const safeY = Math.max(0, Math.min(imageHeight, y));
+  const safeX = Math.max(0, Math.min(imageWidth, x)), safeY = Math.max(0, Math.min(imageHeight, y));
   return { x: Math.round(bounds.x + (safeX / imageWidth) * bounds.width), y: Math.round(bounds.y + (safeY / imageHeight) * bounds.height) };
 }
 
@@ -136,11 +133,20 @@ async function clickDesktopTarget(target, imageWidth, imageHeight, instruction, 
     if (expectedFingerprint && before.fingerprint !== expectedFingerprint) throw new Error('The desktop changed since the target was found. Please rescan the screen before clicking.');
     const result = await computerInput.click(request.arguments);
     const confirmed = verifyResult(record, result);
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     const after = await captureDesktopFile();
     try {
       const changed = before.fingerprint !== after.fingerprint;
-      return { ...confirmed, instruction, target: { ...target, ...point }, verification: applyScreenVerification(confirmed, { changed, confidence: changed ? 1 : 0, note: changed ? 'Desktop image changed after the click.' : 'Desktop image was unchanged after the click.' }) };
+      let semantic = { success: false, confidence: 0, reason: 'Semantic verification was not available.', evidence: '' };
+      try {
+        const analysis = await createVisionAnalyzer().analyzeImage(after.filePath, buildVerificationPrompt(instruction, target.label));
+        semantic = normalizeVerification(analysis.text);
+      } catch (verificationError) {
+        semantic.reason = `Semantic verification unavailable: ${verificationError.message || 'vision analysis failed.'}`.slice(0, 500);
+      }
+      const verified = semantic.success ? 'semantic-confirmed' : changed ? 'screen-confirmed' : 'screen-unchanged';
+      const note = semantic.success ? semantic.reason : changed ? 'Desktop changed, but semantic verification could not confirm the requested outcome.' : semantic.reason;
+      return { ...confirmed, instruction, target: { ...target, ...point }, verification: applyScreenVerification(confirmed, { changed: verified !== 'screen-unchanged', confidence: semantic.success ? semantic.confidence : changed ? 0.75 : 0, note }), semanticVerification: semantic };
     } finally { try { fs.unlinkSync(after.filePath); } catch (_) {} }
   } finally { try { fs.unlinkSync(before.filePath); } catch (_) {} }
 }
