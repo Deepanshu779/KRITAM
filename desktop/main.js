@@ -8,6 +8,8 @@ const { validateToolRequest } = require(path.join(__dirname, '..', 'core', 'poli
 const { executeTool } = require(path.join(__dirname, '..', 'core', 'tools'));
 const { createMemoryStore } = require(path.join(__dirname, '..', 'core', 'memory'));
 const { createScreenCapture } = require(path.join(__dirname, '..', 'core', 'screen'));
+const { createVisionAnalyzer } = require(path.join(__dirname, '..', 'core', 'vision'));
+const { createVisionRuntime } = require(path.join(__dirname, '..', 'core', 'vision-runtime'));
 
 let mainWindow, companionWindow, tray;
 let companionState = { state: 'idle', text: 'KRITAM IS READY' };
@@ -67,7 +69,29 @@ ipcMain.handle('agent:plan', (_event, text) => planLocalCommand(text));
 ipcMain.handle('agent:run-local', async (_event, text) => runLocalCommand(text));
 ipcMain.handle('ollama:status', () => getOllamaStatus());
 ipcMain.handle('ollama:chat', async (_event, messages, options) => { if (!Array.isArray(messages) || messages.length === 0) throw new Error('A conversation is required.'); return ollamaChat(messages, options || {}); });
-ipcMain.handle('tool:execute', async (_event, request) => { const validated = validateToolRequest(request); const result = await executeTool(validated); console.log(`[KRITAM TOOL] ${validated.tool}`, validated.arguments); return { ...result, tool: validated.tool }; });
+
+const screenCapture = createScreenCapture(
+  (options) => mainWindow.capturePage(options),
+  path.join(app.getPath('userData'), 'screenshots')
+);
+const vision = createVisionRuntime({
+  capture: () => screenCapture.capture(),
+  analyzeImage: (filePath, prompt) => createVisionAnalyzer().analyzeImage(filePath, prompt),
+});
+
+ipcMain.handle('tool:execute', async (_event, request) => {
+  const validated = validateToolRequest(request);
+  let result;
+  if (validated.tool === 'capture_screen') {
+    result = await screenCapture.capture();
+  } else if (validated.tool === 'analyze_screen') {
+    result = await vision.analyzeScreen(validated.arguments.prompt);
+  } else {
+    result = await executeTool(validated);
+  }
+  console.log(`[KRITAM TOOL] ${validated.tool}`, validated.arguments);
+  return { ...result, tool: validated.tool };
+});
 ipcMain.handle('app:open-url', async (_event, url) => executeTool({ tool: 'open_url', arguments: { url } }));
 ipcMain.handle('login:set-enabled', (_event, enabled) => { app.setLoginItemSettings({ openAtLogin: Boolean(enabled), path: process.execPath }); return app.getLoginItemSettings().openAtLogin; });
 ipcMain.handle('memory:get-recent', (_event, conversationId = 'default', limit = 50) => memory.getRecentMessages(conversationId, limit));
@@ -75,12 +99,11 @@ ipcMain.handle('memory:add-message', (_event, payload) => memory.addMessage(payl
 ipcMain.handle('memory:get-preferences', () => memory.getPreferences());
 ipcMain.handle('memory:set-preference', (_event, key, value) => memory.setPreference(key, value));
 ipcMain.handle('memory:clear', () => memory.clearAll());
-
-const screenCapture = createScreenCapture(
-  (options) => mainWindow.capturePage(options),
-  path.join(app.getPath('userData'), 'screenshots')
-);
 ipcMain.handle('screen:capture', async () => {
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error('KRITAM window is not available.');
   return screenCapture.capture();
+});
+ipcMain.handle('screen:analyze', async (_event, prompt) => {
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('KRITAM window is not available.');
+  return vision.analyzeScreen(prompt);
 });
