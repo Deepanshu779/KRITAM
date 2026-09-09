@@ -14,6 +14,13 @@ test('plans Windows app commands', () => {
   assert.equal(request.arguments.app, 'explorer');
 });
 
+test('plans safe folder commands', () => {
+  const request = planLocalCommand('open my Downloads');
+  assert.equal(request.tool, 'open_path');
+  assert.equal(request.arguments.path, 'Downloads');
+  assert.equal(planLocalCommand('show Desktop').arguments.path, 'Desktop');
+});
+
 test('plans read-only system commands', () => {
   assert.equal(planLocalCommand('show my PC specs').tool, 'system_info');
   assert.equal(planLocalCommand('what time is it').tool, 'get_time');
