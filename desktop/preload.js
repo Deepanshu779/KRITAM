@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('kritamDesktop', {
   getMemoryPreferences: () => ipcRenderer.invoke('memory:get-preferences'),
   setMemoryPreference: (key, value) => ipcRenderer.invoke('memory:set-preference', key, value),
   clearMemory: () => ipcRenderer.invoke('memory:clear'),
+  captureScreen: () => ipcRenderer.invoke('screen:capture'),
   onCompanionState: (handler) => ipcRenderer.on('companion:state', (_event, payload) => handler(payload)),
   onDailyBriefing: (handler) => ipcRenderer.on('daily-briefing-request', handler)
 });
