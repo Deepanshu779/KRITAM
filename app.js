@@ -4,6 +4,7 @@ const statusText = $('#statusText'), orb = $('#orbWrap'), dialog = $('#permissio
 let pendingAction = null, recognition = null, listening = false, wakeListening = false, wakeRecognition = null, wakeEnabled = true;
 let localAI = { available: false, models: [], selectedModel: null };
 let availableVoices = [];
+let currentConversationId = 'default';
 const avatarStateText = { idle: 'KRITAM is ready', listening: 'KRITAM is listening', thinking: 'KRITAM is thinking', speaking: 'KRITAM is speaking', happy: 'KRITAM is happy' };
 
 function setState(state, text) {
@@ -12,12 +13,22 @@ function setState(state, text) {
   statusText.textContent = text || avatarStateText[safeState];
   window.kritamDesktop?.setCompanionState?.(safeState, text || undefined).catch?.(() => {});
 }
-function addMessage(text, role = 'assistant') {
+function addMessage(text, role = 'assistant', persist = true) {
   welcome.classList.add('hidden'); messages.classList.remove('hidden');
   const item = document.createElement('article'); item.className = `message ${role}`;
   const bubble = document.createElement('div'); bubble.className = 'bubble'; bubble.textContent = text;
   const icon = document.createElement('div'); icon.className = 'message-icon'; icon.textContent = role === 'assistant' ? 'K' : 'D';
   item.append(icon, bubble); messages.append(item); messages.parentElement.scrollTop = messages.parentElement.scrollHeight;
+  if (persist) window.kritamDesktop?.addMemoryMessage?.({ conversationId: currentConversationId, role, text }).catch?.(() => {});
+}
+async function restoreMemory() {
+  if (!window.kritamDesktop?.getRecentMemory) return;
+  try {
+    const history = await window.kritamDesktop.getRecentMemory(currentConversationId, 50);
+    if (!Array.isArray(history) || !history.length) return;
+    welcome.classList.add('hidden'); messages.classList.remove('hidden'); messages.innerHTML = '';
+    history.forEach((message) => addMessage(message.text, message.role, false));
+  } catch (error) { console.warn('Memory restore failed:', error); }
 }
 function toast(text) { const t=$('#toast');t.textContent=text;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3200); }
 function loadVoices() { if ('speechSynthesis' in window) availableVoices = speechSynthesis.getVoices(); }
@@ -102,7 +113,7 @@ function submit(text=input.value.trim()){if(!text)return;addMessage(text,'user')
 $('#composer').addEventListener('submit',e=>{e.preventDefault();submit();});input.addEventListener('input',()=>send.disabled=!input.value.trim());
 document.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{input.value=b.dataset.prompt;submit();});
 $('#approveAction').onclick=runAction;$('#denyAction').onclick=()=>{dialog.close();pendingAction=null;toast('Action cancelled. Nothing changed.');};
-$('#newChat').onclick=()=>{messages.innerHTML='';messages.classList.add('hidden');welcome.classList.remove('hidden');speechSynthesis?.cancel();setState('idle','KRITAM is ready');};
+$('#newChat').onclick=()=>{messages.innerHTML='';messages.classList.add('hidden');welcome.classList.remove('hidden');currentConversationId=`chat-${Date.now()}`;speechSynthesis?.cancel();setState('idle','KRITAM is ready');};
 $('#themeBtn').onclick=()=>{document.body.classList.toggle('light');toast('Theme preference saved locally.');};
 $('#privacyBtn').onclick=()=>{pendingAction={kind:'Privacy centre',label:'Review permissions',description:'Microphone, camera, files and desktop actions are disabled by default. Each sensitive request needs your approval.',done:'your privacy controls are ready'};askPermission(pendingAction);};
 $('#startupToggle').onchange=(event)=>{if(!window.kritamDesktop){event.target.checked=false;toast('Run KRITAM as the desktop app to enable startup.');return;}window.kritamDesktop.setLaunchAtLogin(event.target.checked).then(enabled=>{event.target.checked=enabled;toast(enabled?'KRITAM will start when you sign in.':'Startup launch has been disabled.');});};
@@ -124,5 +135,5 @@ function startWakeWord(){
 }
 $('#stopListening').onclick=()=>{recognition?.stop();stopWakeWord();toast('Wake listening is off.');};
 window.addEventListener('online',()=>$('#networkTag').textContent='ONLINE');window.addEventListener('offline',()=>{$('#networkTag').textContent='OFFLINE';respond('I’m offline right now, but I can still help with local tasks.');});
-window.addEventListener('DOMContentLoaded',()=>{loadVoices();refreshLocalAI();setTimeout(startWakeWord,1800);});
+window.addEventListener('DOMContentLoaded',()=>{loadVoices();refreshLocalAI();restoreMemory();setTimeout(startWakeWord,1800);});
 if('speechSynthesis' in window&&'onvoiceschanged' in speechSynthesis)speechSynthesis.onvoiceschanged=loadVoices;
