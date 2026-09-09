@@ -7,6 +7,7 @@ const { runLocalCommand } = require(path.join(__dirname, '..', 'core', 'agent-ru
 const { validateToolRequest } = require(path.join(__dirname, '..', 'core', 'policy'));
 const { executeTool } = require(path.join(__dirname, '..', 'core', 'tools'));
 const { createMemoryStore } = require(path.join(__dirname, '..', 'core', 'memory'));
+const { createScreenCapture } = require(path.join(__dirname, '..', 'core', 'screen'));
 
 let mainWindow, companionWindow, tray;
 let companionState = { state: 'idle', text: 'KRITAM IS READY' };
@@ -74,3 +75,12 @@ ipcMain.handle('memory:add-message', (_event, payload) => memory.addMessage(payl
 ipcMain.handle('memory:get-preferences', () => memory.getPreferences());
 ipcMain.handle('memory:set-preference', (_event, key, value) => memory.setPreference(key, value));
 ipcMain.handle('memory:clear', () => memory.clearAll());
+
+const screenCapture = createScreenCapture(
+  (options) => mainWindow.capturePage(options),
+  path.join(app.getPath('userData'), 'screenshots')
+);
+ipcMain.handle('screen:capture', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('KRITAM window is not available.');
+  return screenCapture.capture();
+});
