@@ -32,7 +32,7 @@ test('returns conversational response while details are missing', () => {
   const result = planConversationalMessage('I want to buy a laptop for my brother');
   assert.equal(result.intent, 'shopping');
   assert.equal(result.needsDetails, true);
-  assert.match(result.response, /type|style|colour|budget/i);
+  assert.match(result.response, /style|type|colour|color|budget/i);
 });
 
 test('ignores unrelated conversation', () => {
