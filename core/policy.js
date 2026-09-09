@@ -6,6 +6,8 @@ const TOOL_POLICIES = Object.freeze({
   open_path: { risk: RISK_LEVELS.MEDIUM, approval: 'session' },
   system_info: { risk: RISK_LEVELS.LOW, approval: 'none' },
   get_time: { risk: RISK_LEVELS.LOW, approval: 'none' },
+  capture_screen: { risk: RISK_LEVELS.HIGH, approval: 'always' },
+  analyze_screen: { risk: RISK_LEVELS.HIGH, approval: 'always' },
 });
 
 function getPolicy(tool) {
