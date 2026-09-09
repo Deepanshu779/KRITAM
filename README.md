@@ -28,6 +28,10 @@ KRITAM is evolving from a desktop AI companion into a **voice-first computer ass
 - Safe Windows tools for Calculator, Notepad and File Explorer
 - Approved HTTPS website opening
 - Local system information and time tools
+- **Application state detection** for allowlisted Windows apps
+- **Bounded multi-step task planning** with approval before each controlled step
+- **Action verification foundation** for tool and post-action confirmation
+- Safe mouse/keyboard input foundation with high-risk approval
 - Camera permission flow
 - Dark/light UI themes
 - Windows sign-in launch option
@@ -44,25 +48,27 @@ Wake Word / Speech-to-Text
      v
 KRITAM Agent Planner
      |
-     +------------------+
-     |                  |
-     v                  v
-Local Ollama        Structured Tool Call
-     |                  |
-     |            Policy / Permission
-     |                  |
-     +---------> Native Tool Executor
-                            |
-                            v
-                         Windows
-                            |
-                            v
-                     Result / Voice
+     +---------------------------+
+     |                           |
+     v                           v
+Local Ollama              Structured Task Plan
+     |                           |
+     |                     Policy / Permission
+     |                           |
+     +--------------------> Native Tool Executor
+                                  |
+                                  v
+                            Windows / UI State
+                                  |
+                                  v
+                         Verification / Result
 ```
 
 ### Security boundary
 
 The LLM is **not** given arbitrary shell access. Native actions pass through a small tool registry and policy layer. Tools are explicitly allowlisted and arguments are validated before execution.
+
+Multi-step tasks are capped at eight steps and controlled actions are approved one step at a time. Application state uses a fixed allowlist and read-only Windows process inspection rather than arbitrary process commands.
 
 Current tool categories include:
 
@@ -72,6 +78,11 @@ open_app
 open_path
 system_info
 get_time
+app_state
+capture_screen
+analyze_screen
+mouse_click
+type_text
 ```
 
 High-risk operations such as arbitrary shell commands, destructive file operations, credential access, or unrestricted process control are intentionally not exposed.
@@ -99,19 +110,21 @@ High-risk operations such as arbitrary shell commands, destructive file operatio
 ### Phase 3 — Personal Intelligence
 
 - [ ] Local SQLite memory
-- [ ] User preferences
-- [ ] Conversation history
+- [x] User preferences
+- [x] Conversation history
 - [ ] Task history
 - [ ] Long-term memory controls
 
 ### Phase 4 — Computer Control
 
-- [ ] Screenshot understanding
-- [ ] Computer vision
-- [ ] Safe mouse/keyboard tools
-- [ ] Application state detection
-- [ ] Multi-step task planner
-- [ ] Action verification
+- [x] Screenshot understanding foundation
+- [x] Computer vision foundation
+- [x] Safe mouse/keyboard tools
+- [x] Application state detection
+- [x] Multi-step task planner foundation
+- [x] Action verification foundation
+- [ ] Full visual before/after verification
+- [ ] Full desktop-wide screen capture
 
 ### Phase 5 — KRITAM Ecosystem
 
