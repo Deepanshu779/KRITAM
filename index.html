@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KRITAM — Your personal AI</title>
+    <title>KRITAM — Personal AI Companion</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -13,7 +13,7 @@
     <main class="app-shell">
       <aside class="sidebar">
         <div class="brand"><span class="brand-mark">K</span><span>KRITAM</span></div>
-        <button class="new-chat" id="newChat"><span>+</span> New conversation <kbd>⌘ K</kbd></button>
+        <button class="new-chat" id="newChat"><span>+</span> New conversation <kbd>Ctrl K</kbd></button>
         <nav class="conversation-list" aria-label="Conversation history">
           <p class="nav-label">RECENT</p>
           <button class="conversation active"><i></i> Study companion</button>
@@ -25,38 +25,39 @@
           <label class="startup-control"><input id="startupToggle" type="checkbox" /><span>Run when I sign in</span></label>
           <button class="side-action" id="showCompanion"><span>✦</span> Show companion</button>
           <button class="side-action"><span>⚙</span> Settings</button>
-          <div class="profile"><div class="profile-avatar">D</div><div><strong>Deepak</strong><small>Personal workspace</small></div><span>•••</span></div>
+          <div class="profile"><div class="profile-avatar">K</div><div><strong>Personal workspace</strong><small>Local KRITAM session</small></div></div>
         </div>
       </aside>
 
       <section class="workspace">
         <header class="topbar">
           <div class="assistant-status"><span class="pulse-dot" id="statusDot"></span><span id="statusText">KRITAM is ready</span><span class="offline-tag" id="networkTag">ONLINE</span><span class="offline-tag" id="aiTag">LOCAL AI: CHECKING</span></div>
-          <div class="header-actions"><button class="icon-button" id="themeBtn" title="Toggle theme">☼</button><button class="avatar-mini" aria-label="Assistant profile">K</button></div>
+          <div class="header-actions"><button class="icon-button" id="themeBtn" title="Toggle theme">☼</button><button class="avatar-mini" aria-label="KRITAM">K</button></div>
         </header>
 
         <div class="chat-area" id="chatArea">
           <section class="welcome" id="welcome">
             <div class="orb-wrap" id="orbWrap"><div class="orb-core"><span class="orb-k">K</span></div><span class="orb-ring ring-one"></span><span class="orb-ring ring-two"></span></div>
             <p class="eyebrow">YOUR PERSONAL AI COMPANION</p>
-            <h1>Hey Deepak, how can I help?</h1>
-            <p class="welcome-copy">I can think things through, help you learn, and—with your permission—take care of tasks on your computer.</p>
+            <h1>What can I help you with?</h1>
+            <p class="welcome-copy">Talk naturally. Ask KRITAM to explain something, find options, open apps or websites, or help with tasks on your computer.</p>
             <div class="suggestions">
               <button data-prompt="Explain JavaScript promises in simple terms"><b>✦</b><span>Help me understand<br /><strong>JavaScript promises</strong></span><em>›</em></button>
               <button data-prompt="Open YouTube"><b>◉</b><span>Open a website<br /><strong>YouTube</strong></span><em>›</em></button>
               <button data-prompt="Plan a focused study session"><b>◷</b><span>Plan my next<br /><strong>study session</strong></span><em>›</em></button>
             </div>
           </section>
-
           <section class="messages hidden" id="messages" aria-live="polite"></section>
         </div>
 
         <footer class="composer-area">
-          <div class="listening-strip" id="listeningStrip"><span></span><span>Wake phrase: <strong>“Hey KRITAM”</strong></span><button id="stopListening">Turn off</button></div>
+          <div class="listening-strip" id="listeningStrip"><span></span><span>Voice input is available from the microphone</span><button id="stopListening">Turn off</button></div>
           <form class="composer" id="composer">
-            <button type="button" class="add-button" title="Attach file">+</button>
-            <input id="messageInput" autocomplete="off" placeholder="Message KRITAM..." aria-label="Message KRITAM" />
-            <button type="button" class="mic-button" id="micButton" title="Talk to KRITAM"><span>⌁</span></button>
+            <button type="button" class="add-button" title="Attach file" aria-label="Attach file">+</button>
+            <input id="messageInput" autocomplete="off" placeholder="Talk or type to KRITAM…" aria-label="Message KRITAM" />
+            <button type="button" class="mic-button" id="micButton" title="Talk to KRITAM" aria-label="Talk to KRITAM">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14.5a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 0 0-7 0v5a3.5 3.5 0 0 0 3.5 3.5Z"/><path d="M18.5 11a6.5 6.5 0 0 1-13 0M12 17.5V21M8.5 21h7"/></svg>
+            </button>
             <button class="send-button" id="sendButton" aria-label="Send message" disabled>↑</button>
           </form>
           <p class="disclaimer">KRITAM can make mistakes. Sensitive desktop actions require your approval.</p>
