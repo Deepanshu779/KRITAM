@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('kritamDesktop', {
   openUrl: (url) => ipcRenderer.invoke('app:open-url', url),
   planAgent: (text) => ipcRenderer.invoke('agent:plan', text),
   planTask: (text) => ipcRenderer.invoke('task:plan', text),
+  planConversation: (text) => ipcRenderer.invoke('conversation:plan', text),
   runLocalAgent: (text) => ipcRenderer.invoke('agent:run-local', text),
   executeTool: (request) => ipcRenderer.invoke('tool:execute', request),
   pressShortcut: (keys) => ipcRenderer.invoke('keyboard:shortcut', keys),
