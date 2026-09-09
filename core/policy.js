@@ -12,6 +12,7 @@ const TOOL_POLICIES = Object.freeze({
   screen_targets: { risk: RISK_LEVELS.HIGH, approval: 'always' },
   mouse_click: { risk: RISK_LEVELS.HIGH, approval: 'always' },
   type_text: { risk: RISK_LEVELS.HIGH, approval: 'always' },
+  keyboard_shortcut: { risk: RISK_LEVELS.HIGH, approval: 'always' },
 });
 
 function getPolicy(tool) {
