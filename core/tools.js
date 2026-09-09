@@ -2,6 +2,7 @@ const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
 const { shell } = require('electron');
+const { getApplicationState } = require('./app-state');
 
 const WINDOWS_APPS = Object.freeze({
   calculator: { file: 'calc.exe', label: 'Calculator' },
@@ -36,37 +37,20 @@ async function openPath(target) {
 const tools = {
   async open_url({ url }) {
     const value = String(url || '').trim();
-    if (!/^https:\/\//i.test(value)) throw new Error('Only HTTPS URLs are allowed.');
-    const allowedHosts = new Set(['google.com', 'www.google.com', 'youtube.com', 'www.youtube.com', 'github.com', 'www.github.com']);
-    const parsed = new URL(value);
-    if (!allowedHosts.has(parsed.hostname.toLowerCase())) throw new Error('That website is not on KRITAM\'s approved list.');
-    await shell.openExternal(parsed.toString());
+    let parsed;
+    try { parsed = new URL(value); } catch (_) { throw new Error('Only valid HTTPS URLs are allowed.'); }
+    if (parsed.protocol !== 'https:') throw new Error('Only HTTPS websites are allowed.');
+    const error = await shell.openExternal(parsed.toString());
+    if (error) throw new Error(error);
     return { success: true, url: parsed.toString() };
   },
-
-  async open_app({ app }) {
-    return runAllowedApp(app);
-  },
-
-  async open_path({ path: target }) {
-    return openPath(target);
-  },
-
+  async open_app({ app }) { return runAllowedApp(app); },
+  async open_path({ path: target }) { return openPath(target); },
+  async app_state({ app }) { return getApplicationState(app); },
   async system_info() {
-    return {
-      platform: process.platform,
-      release: os.release(),
-      arch: process.arch,
-      hostname: os.hostname(),
-      memoryGB: Number((os.totalmem() / 1024 ** 3).toFixed(1)),
-      freeMemoryGB: Number((os.freemem() / 1024 ** 3).toFixed(1)),
-      cpu: os.cpus()[0]?.model || 'Unknown CPU',
-    };
+    return { success: true, platform: process.platform, release: os.release(), arch: os.arch(), cpuCount: os.cpus().length, memoryGB: Math.round(os.totalmem() / 1024 / 1024 / 1024) };
   },
-
-  async get_time() {
-    return { iso: new Date().toISOString(), local: new Date().toString() };
-  },
+  async get_time() { return { success: true, iso: new Date().toISOString(), local: new Date().toLocaleString() }; },
 };
 
 async function executeTool(request) {
