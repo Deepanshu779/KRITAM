@@ -26,7 +26,7 @@ let mainWindow, companionWindow, tray;
 let companionState = { state: 'idle', text: 'KRITAM IS READY' };
 let conversationState = null;
 const appRoot = path.join(__dirname, '..');
-const dataRoot = path.join(appRoot, '.kritam-data');
+const dataRoot = path.join(app.getPath('appData'), 'KRITAM');
 app.setPath('userData', dataRoot);
 app.setPath('sessionData', path.join(dataRoot, 'session'));
 const memory = createMemoryStore(path.join(app.getPath('userData'), 'memory.json'));
