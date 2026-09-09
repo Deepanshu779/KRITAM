@@ -20,7 +20,8 @@ contextBridge.exposeInMainWorld('kritamDesktop', {
   captureScreen: () => ipcRenderer.invoke('screen:capture'),
   analyzeScreen: (prompt) => ipcRenderer.invoke('screen:analyze', prompt),
   findDesktopTargets: (instruction) => ipcRenderer.invoke('screen:targets', instruction),
-  clickDesktopTarget: (target, imageWidth, imageHeight, instruction) => ipcRenderer.invoke('screen:click-target', target, imageWidth, imageHeight, instruction),
+  selectScreenTarget: (targets, instruction) => ipcRenderer.invoke('screen:select-target', targets, instruction),
+  clickDesktopTarget: (target, imageWidth, imageHeight, instruction, expectedFingerprint) => ipcRenderer.invoke('screen:click-target', target, imageWidth, imageHeight, instruction, expectedFingerprint),
   onCompanionState: (handler) => ipcRenderer.on('companion:state', (_event, payload) => handler(payload)),
   onDailyBriefing: (handler) => ipcRenderer.on('daily-briefing-request', handler)
 });
