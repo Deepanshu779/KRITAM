@@ -8,8 +8,8 @@ test('creates an auditable action record', () => {
   assert.equal(record.verification, 'pending');
 });
 
-test('maps computer actions to verification strategies', () => {
-  assert.deepEqual(getVerificationPlan('mouse_click'), { supported: true, method: 'post_action_screen' });
+test('maps computer actions to semantic verification strategies', () => {
+  assert.deepEqual(getVerificationPlan('mouse_click'), { supported: true, method: 'semantic_post_action_screen' });
   assert.deepEqual(getVerificationPlan('open_app'), { supported: true, method: 'application_state' });
   assert.equal(getVerificationPlan('unknown').supported, false);
 });
