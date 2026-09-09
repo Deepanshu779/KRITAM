@@ -1,5 +1,5 @@
 const path = require('path');
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
 const https = require('https');
 const { getStatus: getOllamaStatus, chat: ollamaChat } = require(path.join(__dirname, '..', 'core', 'ollama'));
 const { validateToolRequest } = require(path.join(__dirname, '..', 'core', 'policy'));
