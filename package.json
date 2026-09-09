@@ -25,8 +25,10 @@
       "core/**/*",
       "assets/**/*",
       "index.html",
+      "styles.css",
       "app.js",
       "voice-controller.js",
+      "conversation-ui.js",
       "package.json"
     ],
     "directories": {
